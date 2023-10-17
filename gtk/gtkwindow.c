@@ -62,6 +62,8 @@
 #include "gtkcssboxesimplprivate.h"
 #include "gtktooltipprivate.h"
 #include "gtkmenubutton.h"
+#include "gtkwindowcontrols.h"
+#include "gtkwindowhandle.h"
 
 #include "inspector/window.h"
 
@@ -86,6 +88,7 @@
 
 #ifdef GDK_WINDOWING_WIN32
 #include "win32/gdkwin32.h"
+#include "win32/gdksurface-win32.h"
 #endif
 
 #ifdef GDK_WINDOWING_WAYLAND
@@ -4477,6 +4480,53 @@ toplevel_compute_size (GdkToplevel     *toplevel,
   gtk_widget_clear_resize_queued (widget);
 }
 
+#ifdef GDK_WINDOWING_WIN32
+static GdkWin32HitTestResult
+surface_hit_test (GdkSurface *surface,
+                  double      x,
+                  double      y,
+                  GtkWidget  *widget)
+{
+  GtkWidget *picked;
+  GtkWidget *parent;
+  double trans_x, trans_y;
+
+  gtk_window_native_get_surface_transform (GTK_NATIVE (widget),
+                                           &trans_x, &trans_y);
+  x -= trans_x;
+  y -= trans_y;
+
+  picked = gtk_widget_pick (widget, x, y, GTK_PICK_DEFAULT);
+  if (!picked)
+    return GDK_WIN32_HIT_TEST_NONE;
+
+  while (TRUE)
+    {
+      if (GTK_IS_WINDOW_HANDLE (picked))
+        return GDK_WIN32_HIT_TEST_CAPTION;
+      parent = _gtk_widget_get_parent (picked);
+      if (!parent)
+        return GDK_WIN32_HIT_TEST_NONE;
+      /* Stop at a child of GtkWindowControls */
+      if (GTK_IS_WINDOW_CONTROLS (parent))
+        break;
+      picked = parent;
+    }
+
+  if (gtk_widget_has_css_class (picked, "icon"))
+    return GDK_WIN32_HIT_TEST_ICON;
+  else if (gtk_widget_has_css_class (picked, "minimize"))
+    return GDK_WIN32_HIT_TEST_MIN_BUTTON;
+  else if (gtk_widget_has_css_class (picked, "maximize"))
+    return GDK_WIN32_HIT_TEST_MAX_BUTTON;
+  else if (gtk_widget_has_css_class (picked, "close"))
+    return GDK_WIN32_HIT_TEST_CLOSE_BUTTON;
+  else
+    return GDK_WIN32_HIT_TEST_NONE;
+
+}
+#endif
+
 static void
 gtk_window_realize (GtkWidget *widget)
 {
@@ -4527,6 +4577,11 @@ gtk_window_realize (GtkWidget *widget)
 
   frame_clock = gdk_surface_get_frame_clock (surface);
   g_signal_connect (frame_clock, "after-paint", G_CALLBACK (after_paint), widget);
+
+#ifdef GDK_WINDOWING_WIN32
+  if (GDK_IS_WIN32_SURFACE (surface))
+    g_signal_connect (surface, "win32-hit-test", G_CALLBACK (surface_hit_test), widget);
+#endif
 
   GTK_WIDGET_CLASS (gtk_window_parent_class)->realize (widget);
 
@@ -4634,6 +4689,11 @@ gtk_window_unrealize (GtkWidget *widget)
   g_signal_handlers_disconnect_by_func (surface, surface_render, widget);
   g_signal_handlers_disconnect_by_func (surface, surface_event, widget);
   g_signal_handlers_disconnect_by_func (surface, toplevel_compute_size, widget);
+
+#ifdef GDK_WINDOWING_WIN32
+  if (GDK_IS_WIN32_SURFACE (surface))
+    g_signal_handlers_disconnect_by_func (surface, surface_hit_test, widget);
+#endif
 
   frame_clock = gdk_surface_get_frame_clock (surface);
 

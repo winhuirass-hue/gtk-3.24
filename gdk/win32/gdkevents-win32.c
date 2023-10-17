@@ -1300,13 +1300,10 @@ handle_nchittest (HWND hwnd,
   GdkWin32Surface *impl;
   RECT client_rect;
   POINT client_pt;
+  double x, y;
+  GdkWin32HitTestResult ht_result;
 
   if (surface == NULL)
-    return FALSE;
-
-  /* If the surface has no particular input pass-through region,
-   * then we can simply let DefWindowProc() handle the message */
-  if (surface->input_region == NULL)
     return FALSE;
 
   if (!GetClientRect (hwnd, &client_rect))
@@ -1323,16 +1320,41 @@ handle_nchittest (HWND hwnd,
 
   impl = GDK_WIN32_SURFACE (surface);
 
-  /* If the point lies inside the input region, return HTCLIENT,
-   * otherwise return HTTRANSPARENT. */
-  if (cairo_region_contains_point (surface->input_region,
-                                   client_pt.x / impl->surface_scale,
-                                   client_pt.y / impl->surface_scale))
-    *ret_valp = HTCLIENT;
-  else
-    *ret_valp = HTTRANSPARENT;
+  x = client_pt.x / impl->surface_scale;
+  y = client_pt.y / impl->surface_scale;
 
-  /* We handled the message, no need to call DefWindowProc() */
+  /* If the point lies outside the input region, return HTTRANSPARENT */
+  if (surface->input_region && !cairo_region_contains_point (surface->input_region, x, y))
+    {
+      *ret_valp = HTTRANSPARENT;
+      return TRUE;
+    }
+
+  ht_result = gdk_win32_surface_nchittest (surface, x, y);
+  switch (ht_result)
+    {
+    case GDK_WIN32_HIT_TEST_NONE:
+      *ret_valp = HTCLIENT;
+      break;
+    case GDK_WIN32_HIT_TEST_CAPTION:
+      *ret_valp = HTCAPTION;
+      break;
+    case GDK_WIN32_HIT_TEST_MIN_BUTTON:
+      *ret_valp = HTMINBUTTON;
+      break;
+    case GDK_WIN32_HIT_TEST_MAX_BUTTON:
+      *ret_valp = HTMAXBUTTON;
+      break;
+    case GDK_WIN32_HIT_TEST_CLOSE_BUTTON:
+      *ret_valp = HTCLOSE;
+      break;
+    case GDK_WIN32_HIT_TEST_ICON:
+      *ret_valp = HTSYSMENU;
+      break;
+    default:
+      g_assert_not_reached ();
+    }
+
   return TRUE;
 }
 

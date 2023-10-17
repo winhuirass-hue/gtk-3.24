@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include "gdk/win32/gdkprivate-win32.h"
 #include "gdk/win32/gdkwin32cursor.h"
 #include "gdk/win32/gdkwin32surface.h"
 #include "gdk/gdksurfaceprivate.h"
@@ -204,9 +203,23 @@ struct _GdkWin32Surface
   GdkWin32SessionCallback cb_session_end;
 };
 
+enum _GdkWin32HitTestResult
+{
+  GDK_WIN32_HIT_TEST_NONE = 0,
+  GDK_WIN32_HIT_TEST_CAPTION,
+  GDK_WIN32_HIT_TEST_MIN_BUTTON,
+  GDK_WIN32_HIT_TEST_MAX_BUTTON,
+  GDK_WIN32_HIT_TEST_CLOSE_BUTTON,
+  GDK_WIN32_HIT_TEST_ICON
+};
+
+typedef enum _GdkWin32HitTestResult GdkWin32HitTestResult;
+
 struct _GdkWin32SurfaceClass
 {
   GdkSurfaceClass parent_class;
+
+  GdkWin32HitTestResult (*win32_hit_test)(GdkSurface *window, double x, double y);
 };
 
 GType _gdk_win32_surface_get_type (void);
@@ -228,6 +241,10 @@ GdkSurface *    gdk_win32_drag_surface_new                      (GdkDisplay     
 void            gdk_win32_surface_set_dcomp_content             (GdkWin32Surface        *self,
                                                                  IUnknown               *dcomp_content);
 
+GdkWin32HitTestResult gdk_win32_surface_nchittest (GdkSurface *surface,
+                                                   double      x,
+                                                   double      y);
+
 #ifdef HAVE_EGL
 EGLSurface gdk_win32_surface_get_egl_surface (GdkSurface *surface,
                                               EGLConfig   config,
@@ -235,4 +252,3 @@ EGLSurface gdk_win32_surface_get_egl_surface (GdkSurface *surface,
 #endif
 
 G_END_DECLS
-
