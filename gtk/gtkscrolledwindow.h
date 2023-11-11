@@ -181,6 +181,12 @@ void           gtk_scrolled_window_set_child        (GtkScrolledWindow *scrolled
 GDK_AVAILABLE_IN_ALL
 GtkWidget     *gtk_scrolled_window_get_child        (GtkScrolledWindow *scrolled_window);
 
+GDK_AVAILABLE_IN_ALL
+void           gtk_scrolled_window_set_interpolation_animation (GtkScrolledWindow *scrolled_window,
+                                                                gboolean           interpolation_animation_enabled);
+GDK_AVAILABLE_IN_ALL
+gboolean       gtk_scrolled_window_get_interpolation_animation (GtkScrolledWindow *scrolled_window);
+
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GtkScrolledWindow, g_object_unref)
 
 G_END_DECLS
