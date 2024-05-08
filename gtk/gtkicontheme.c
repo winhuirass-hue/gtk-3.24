@@ -55,6 +55,7 @@
 #include "gdktextureutilsprivate.h"
 #include "gdk/gdktextureprivate.h"
 #include "gdk/gdkprofilerprivate.h"
+#include "gtkiconprovider.h"
 
 #define GDK_ARRAY_ELEMENT_TYPE char *
 #define GDK_ARRAY_NULL_TERMINATED 1
@@ -756,7 +757,37 @@ icon_cache_clear (GtkIconTheme *theme)
 
 /****************** End of icon cache ***********************/
 
-G_DEFINE_TYPE (GtkIconTheme, gtk_icon_theme, G_TYPE_OBJECT)
+static GdkPaintable *
+gtk_icon_theme_lookup_icon_as_provider (GtkIconProvider    *provider,
+                                        const char         *name,
+                                        int                 size,
+                                        float               scale,
+                                        GtkTextDirection    direction,
+                                        GtkIconLookupFlags  flags)
+{
+  GtkIconTheme *self = GTK_ICON_THEME (provider);
+
+  return GDK_PAINTABLE (gtk_icon_theme_lookup_icon (self, name, NULL, size, (int) ceilf (scale), direction, flags));
+}
+
+static gboolean
+gtk_icon_theme_has_icon_as_provider (GtkIconProvider *provider,
+                                     const char      *name)
+{
+  GtkIconTheme *self = GTK_ICON_THEME (provider);
+
+  return gtk_icon_theme_has_icon (self, name);
+}
+
+static void
+gtk_icon_provider_init (GtkIconProviderInterface *iface)
+{
+  iface->lookup_icon = gtk_icon_theme_lookup_icon_as_provider;
+  iface->has_icon = gtk_icon_theme_has_icon_as_provider;
+}
+
+G_DEFINE_TYPE_WITH_CODE (GtkIconTheme, gtk_icon_theme, G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (GTK_TYPE_ICON_PROVIDER, gtk_icon_provider_init))
 
 /**
  * gtk_icon_theme_new:
@@ -1239,6 +1270,7 @@ theme_changed_idle__mainthread_unlocked (gpointer user_data)
     {
       /* Emit signals outside locks. */
       g_signal_emit (self, signal_changed, 0);
+      gtk_icon_provider_invalidate (GTK_ICON_PROVIDER (self));
 
       if (display)
         {
