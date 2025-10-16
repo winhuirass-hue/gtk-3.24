@@ -27,13 +27,14 @@
 #include "gtkcssnumbervalueprivate.h"
 #include "gtkcssstyleprivate.h"
 #include "gtkcsstransientnodeprivate.h"
-#include "gtkiconthemeprivate.h"
+#include "gtkiconpaintableprivate.h"
 #include "gtkrendericonprivate.h"
 #include "gtkscalerprivate.h"
 #include "gtksnapshot.h"
 #include "gtkwidgetprivate.h"
 #include "gdk/gdkprofilerprivate.h"
 #include "gtksymbolicpaintable.h"
+#include "gtkiconprovider.h"
 
 struct _GtkIconHelper
 {
@@ -89,30 +90,76 @@ ensure_paintable_for_gicon (GtkIconHelper    *self,
                             GIcon            *gicon,
                             gboolean         *symbolic)
 {
-  GtkIconTheme *icon_theme;
-  int width, height;
+  int size;
   GtkIconPaintable *icon;
   GtkIconLookupFlags flags;
 
-  icon_theme = gtk_icon_theme_get_for_display (gtk_widget_get_display (self->owner));
   flags = get_icon_lookup_flags (self, style);
   if (preload)
     flags |= GTK_ICON_LOOKUP_PRELOAD;
 
-  width = height = gtk_icon_helper_get_size (self);
+  size = gtk_icon_helper_get_size (self);
 
-  icon = gtk_icon_theme_lookup_by_gicon (icon_theme,
-                                         gicon,
-                                         MIN (width, height),
-                                         scale,
-                                         dir,
-                                         flags);
+  while (G_IS_EMBLEMED_ICON (gicon))
+    gicon = g_emblemed_icon_get_icon (G_EMBLEMED_ICON (gicon));
+
+  if (GDK_IS_TEXTURE (gicon))
+    {
+      icon = gtk_icon_paintable_new_for_texture (GDK_TEXTURE (gicon), size, scale);
+    }
+  else if (GDK_IS_PIXBUF (gicon))
+    {
+      GdkTexture *texture;
 
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-  *symbolic = gtk_icon_paintable_is_symbolic (icon);
+      texture = gdk_texture_new_for_pixbuf (GDK_PIXBUF (gicon));
+G_GNUC_END_IGNORE_DEPRECATIONS
+      icon = gtk_icon_paintable_new_for_texture (texture, size, scale);
+    }
+  else if (G_IS_FILE_ICON (gicon))
+    {
+      GFile *file = g_file_icon_get_file (G_FILE_ICON (gicon));
+
+      icon = gtk_icon_paintable_new_for_file (file, size, scale);
+    }
+  else if (G_IS_LOADABLE_ICON (gicon))
+    {
+      icon = gtk_icon_paintable_new_for_loadable (G_LOADABLE_ICON (gicon), size, scale);
+    }
+  else if (G_IS_THEMED_ICON (gicon))
+    {
+      icon = GTK_ICON_PAINTABLE (gtk_lookup_icon (gtk_widget_get_display (self->owner),
+                                                  g_themed_icon_get_names (G_THEMED_ICON (gicon))[0],
+                                                  size,
+                                                  scale,
+                                                  dir,
+                                                  flags));
+    }
+  else
+    {
+      g_assert_not_reached ();
+    }
+
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  if (GTK_IS_ICON_PAINTABLE (icon))
+    *symbolic = gtk_icon_paintable_is_symbolic (icon);
 G_GNUC_END_IGNORE_DEPRECATIONS
 
   return GDK_PAINTABLE (icon);
+}
+
+static GdkPaintable *
+ensure_paintable_for_icon_name (GtkIconHelper *self,
+                                const char    *name,
+                                gboolean       preload)
+{
+  return gtk_lookup_icon (gtk_widget_get_display (self->owner),
+                          name,
+                          gtk_icon_helper_get_size (self),
+                          gtk_widget_get_scale_factor (self->owner),
+                          gtk_widget_get_direction (self->owner),
+                          preload ? GTK_ICON_LOOKUP_PRELOAD
+                                  : GTK_ICON_LOOKUP_NONE);
 }
 
 static GdkPaintable *
@@ -121,7 +168,6 @@ gtk_icon_helper_load_paintable (GtkIconHelper   *self,
                                 gboolean        *out_symbolic)
 {
   GdkPaintable *paintable;
-  GIcon *gicon;
   gboolean symbolic;
 
   switch (gtk_image_definition_get_storage_type (self->def))
@@ -134,18 +180,15 @@ gtk_icon_helper_load_paintable (GtkIconHelper   *self,
       break;
 
     case GTK_IMAGE_ICON_NAME:
-      if (self->use_fallback)
-        gicon = g_themed_icon_new_with_default_fallbacks (gtk_image_definition_get_icon_name (self->def));
+      paintable = ensure_paintable_for_icon_name (self,
+                                                  gtk_image_definition_get_icon_name (self->def),
+                                                  preload);
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+      if (GTK_IS_ICON_PAINTABLE (paintable))
+        symbolic = gtk_icon_paintable_is_symbolic (GTK_ICON_PAINTABLE (paintable));
       else
-        gicon = g_themed_icon_new (gtk_image_definition_get_icon_name (self->def));
-      paintable = ensure_paintable_for_gicon (self,
-                                              gtk_css_node_get_style (self->node),
-                                              gtk_widget_get_scale_factor (self->owner),
-                                              gtk_widget_get_direction (self->owner),
-                                              preload,
-                                              gicon,
-                                              &symbolic);
-      g_object_unref (gicon);
+        symbolic = GTK_IS_SYMBOLIC_PAINTABLE (paintable);
+G_GNUC_END_IGNORE_DEPRECATIONS
       break;
 
     case GTK_IMAGE_GICON:

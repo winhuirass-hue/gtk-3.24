@@ -39,7 +39,7 @@
 #include "gtkeventcontrollermotion.h"
 #include "gtkgestureclick.h"
 #include "gtkheaderbar.h"
-#include "gtkicontheme.h"
+#include "gtkiconprovider.h"
 #include <glib/gi18n-lib.h>
 #include "gtkmain.h"
 #include "gtkmarshalers.h"
@@ -3401,18 +3401,6 @@ ensure_icon_info (GtkWindow *window)
   return info;
 }
 
-static int
-icon_size_compare (GdkTexture *a,
-                   GdkTexture *b)
-{
-  int area_a, area_b;
-
-  area_a = gdk_texture_get_width (a) * gdk_texture_get_height (a);
-  area_b = gdk_texture_get_width (b) * gdk_texture_get_height (b);
-
-  return area_a - area_b;
-}
-
 static GdkTexture *
 render_paintable_to_texture (GdkPaintable *paintable)
 {
@@ -3445,49 +3433,28 @@ render_paintable_to_texture (GdkPaintable *paintable)
 }
 
 static GList *
-icon_list_from_theme (GtkWindow   *window,
-		      const char *name)
+icon_list_from_theme (GtkWindow  *window,
+                      const char *name)
 {
   GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
   GList *list;
-  GtkIconTheme *icon_theme;
-  GtkIconPaintable *info;
+  GdkPaintable *paintable;
   GdkTexture *texture;
-  int *sizes;
-  int i;
   int scale;
-
-  icon_theme = gtk_icon_theme_get_for_display (priv->display);
-
-  sizes = gtk_icon_theme_get_icon_sizes (icon_theme, name);
+  GtkTextDirection dir;
 
   scale = gtk_widget_get_scale_factor (GTK_WIDGET (window));
+  dir = gtk_widget_get_direction (GTK_WIDGET (window));
 
-  list = NULL;
-  for (i = 0; sizes[i]; i++)
-    {
-      /* FIXME
-       * We need an EWMH extension to handle scalable icons
-       * by passing their name to the WM. For now just use a
-       * fixed size of 48.
-       */
-      if (sizes[i] == -1)
-        info = gtk_icon_theme_lookup_icon (icon_theme, name, NULL,
-                                           48, scale,
-                                           gtk_widget_get_direction (GTK_WIDGET (window)),
-                                           0);
-      else
-        info = gtk_icon_theme_lookup_icon (icon_theme, name, NULL,
-                                           sizes[i], scale,
-                                           gtk_widget_get_direction (GTK_WIDGET (window)),
-                                           0);
-
-      texture = render_paintable_to_texture (GDK_PAINTABLE (info));
-      list = g_list_insert_sorted (list, texture, (GCompareFunc) icon_size_compare);
-      g_object_unref (info);
-    }
-
-  g_free (sizes);
+  /* FIXME
+   * We need an EWMH extension to handle scalable icons
+   * by passing their name to the WM. For now just use a
+   * fixed size of 48.
+   */
+  paintable = gtk_lookup_icon (priv->display, name, 48, scale, dir, 0);
+  texture = render_paintable_to_texture (paintable);
+  list = g_list_append (NULL, texture);
+  g_object_unref (paintable);
 
   return list;
 }
@@ -3531,33 +3498,6 @@ gtk_window_realize_icon (GtkWindow *window)
 
   if (info->using_themed_icon)
     g_list_free_full (icon_list, g_object_unref);
-}
-
-GdkPaintable *
-gtk_window_get_icon_for_size (GtkWindow *window,
-                              int        size)
-{
-  const char *name;
-  GtkIconPaintable *info;
-  int scale;
-
-  name = gtk_window_get_icon_name (window);
-
-  if (!name)
-    name = default_icon_name;
-  if (!name)
-    return NULL;
-
-  scale = gtk_widget_get_scale_factor (GTK_WIDGET (window));
-
-  info = gtk_icon_theme_lookup_icon (gtk_icon_theme_get_for_display (gtk_widget_get_display (GTK_WIDGET (window))),
-                                     name, NULL, size, scale,
-                                     gtk_widget_get_direction (GTK_WIDGET (window)),
-                                     0);
-  if (info == NULL)
-    return NULL;
-
-  return GDK_PAINTABLE (info);
 }
 
 static void

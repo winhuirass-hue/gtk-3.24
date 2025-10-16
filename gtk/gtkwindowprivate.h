@@ -64,10 +64,6 @@ GtkWindowGroup *_gtk_window_get_window_group (GtkWindow *window);
 void            _gtk_window_set_window_group (GtkWindow      *window,
                                               GtkWindowGroup *group);
 
-
-GdkPaintable *    gtk_window_get_icon_for_size (GtkWindow *window,
-                                                int        size);
-
 /* Exported handles */
 
 typedef void (*GtkWindowHandleExported)  (GtkWindow               *window,
