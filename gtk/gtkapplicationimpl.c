@@ -79,6 +79,7 @@ gtk_application_impl_class_init (GtkApplicationImplClass *class)
   class->forget_state = (gpointer) do_nothing;
   class->unforget_state = (gpointer) do_nothing;
   class->retrieve_state = (gpointer) return_null;
+  class->add_platform_data = (gpointer) return_null;
 }
 
 void
@@ -245,6 +246,13 @@ GVariant *
 gtk_application_impl_retrieve_state (GtkApplicationImpl *impl)
 {
   return GTK_APPLICATION_IMPL_GET_CLASS (impl)->retrieve_state (impl);
+}
+
+void
+gtk_application_impl_add_platform_data (GtkApplicationImpl *impl,
+                                        GVariantBuilder    *builder)
+{
+  return GTK_APPLICATION_IMPL_GET_CLASS (impl)->add_platform_data (impl, builder);
 }
 
 GtkApplicationImpl *

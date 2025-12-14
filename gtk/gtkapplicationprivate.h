@@ -124,6 +124,8 @@ typedef struct
   void         (* forget_state)             (GtkApplicationImpl          *impl);
   void         (* unforget_state)           (GtkApplicationImpl          *impl);
   GVariant *   (* retrieve_state)           (GtkApplicationImpl          *impl);
+  void         (* add_platform_data)        (GtkApplicationImpl          *impl,
+                                             GVariantBuilder             *builder);
 } GtkApplicationImplClass;
 
 #define GTK_TYPE_APPLICATION_IMPL_DBUS                      (gtk_application_impl_dbus_get_type ())
@@ -161,6 +163,8 @@ typedef struct
   gboolean         save_restore_registered;
   char            *instance_id;
   GtkRestoreReason reason;
+
+  char            *startup_id;
 } GtkApplicationImplDBus;
 
 typedef struct
@@ -238,9 +242,10 @@ void                    gtk_application_impl_store_state                (GtkAppl
 void                    gtk_application_impl_forget_state               (GtkApplicationImpl          *impl);
 void                    gtk_application_impl_unforget_state             (GtkApplicationImpl          *impl);
 GVariant *              gtk_application_impl_retrieve_state             (GtkApplicationImpl          *impl);
+void                    gtk_application_impl_add_platform_data          (GtkApplicationImpl          *impl,
+                                                                         GVariantBuilder             *builder);
 
 GVariant *              gtk_application_impl_dbus_get_window_state      (GtkApplicationImplDBus *dbus,
                                                                          GtkWindow              *window);
 
 G_END_DECLS
-
