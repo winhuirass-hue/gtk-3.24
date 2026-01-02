@@ -257,7 +257,8 @@ gdk_sources += [
   gdkversionmacros_h,
   gdk_visibility_h,
   gdk_private_h_sources,
-  gdk_public_headers
+  gdk_public_headers,
+  'fast_float.cpp',
 ]
 
 if wayland_enabled or broadway_enabled

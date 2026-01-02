@@ -26,6 +26,8 @@
 #include "gskpathpoint.h"
 #include "gskcontourprivate.h"
 
+#include "gdk/fast_float_c.h"
+
 static void
 skip_whitespace (const char **p)
 {
@@ -43,10 +45,13 @@ skip_optional_comma (const char **p)
 
 static gboolean
 parse_number (const char **p,
+              const char  *end,
               double      *c)
 {
-  char *e;
-  *c = g_ascii_strtod (*p, &e);
+  const char *e;
+
+  skip_whitespace (p);
+  *c = strtod_fast (*p, end, &e);
   if (e == *p)
     return FALSE;
   *p = e;
@@ -56,25 +61,27 @@ parse_number (const char **p,
 
 static gboolean
 parse_coordinate (const char **p,
+                  const char  *end,
                   double      *c)
 {
-  return parse_number (p, c);
+  return parse_number (p, end, c);
 }
 
 static gboolean
 parse_coordinate_pair (const char **p,
+                       const char  *end,
                        double      *x,
                        double      *y)
 {
   double xx, yy;
   const char *o = *p;
 
-  if (!parse_coordinate (p, &xx))
+  if (!parse_coordinate (p, end, &xx))
     {
       *p = o;
       return FALSE;
     }
-  if (!parse_coordinate (p, &yy))
+  if (!parse_coordinate (p, end, &yy))
     {
       *p = o;
       return FALSE;
@@ -88,12 +95,13 @@ parse_coordinate_pair (const char **p,
 
 static gboolean
 parse_nonnegative_number (const char **p,
+                          const char  *end,
                           double      *x)
 {
   const char *o = *p;
   double n;
 
-  if (!parse_number (p, &n))
+  if (!parse_number (p, end, &n))
     return FALSE;
 
   if (n < 0)
@@ -167,15 +175,17 @@ parse_command (const char **p,
 }
 
 static gboolean
-parse_string (const char **p,
-              const char  *s)
-{ 
-  int len = strlen (s);
+parse_string_len (const char **p,
+                  const char  *s,
+                  int          len)
+{
   if (strncmp (*p, s, len) != 0)
     return FALSE;
   (*p) += len;
   return TRUE;
 }
+
+#define parse_string(p, s) parse_string_len (p, s, strlen (s))
 
 #define NEAR(x, y) (fabs ((x) - (y)) < 0.001)
 
@@ -206,6 +216,7 @@ is_line (double x0, double y0,
 
 static gboolean
 parse_rectangle (const char **p,
+                 const char  *end,
                  double      *x,
                  double      *y,
                  double      *w,
@@ -214,13 +225,13 @@ parse_rectangle (const char **p,
   const char *o = *p;
   double w2;
 
-  if (parse_coordinate_pair (p, x, y) &&
+  if (parse_coordinate_pair (p, end, x, y) &&
       parse_string (p, "h") &&
-      parse_coordinate (p, w) &&
+      parse_coordinate (p, end, w) &&
       parse_string (p, "v") &&
-      parse_coordinate (p, h) &&
+      parse_coordinate (p, end, h) &&
       parse_string (p, "h") &&
-      parse_coordinate (p, &w2) &&
+      parse_coordinate (p, end, &w2) &&
       parse_string (p, "z") &&
       w2 == -*w && *w >= 0 && *h >= 0)
     {
@@ -235,6 +246,7 @@ parse_rectangle (const char **p,
 
 static gboolean
 parse_circle (const char **p,
+              const char  *end,
               double      *cx,
               double      *cy,
               double      *r)
@@ -245,23 +257,23 @@ parse_circle (const char **p,
   double x8, y8, w0, w1, w2, w3;
   double rr;
 
-  if (parse_coordinate_pair (p, &x0, &y0) &&
+  if (parse_coordinate_pair (p, end, &x0, &y0) &&
       parse_string (p, "o") &&
-      parse_coordinate_pair (p, &x1, &y1) &&
-      parse_coordinate_pair (p, &x2, &y2) &&
-      parse_nonnegative_number (p, &w0) &&
+      parse_coordinate_pair (p, end, &x1, &y1) &&
+      parse_coordinate_pair (p, end, &x2, &y2) &&
+      parse_nonnegative_number (p, end, &w0) &&
       parse_string (p, "o") &&
-      parse_coordinate_pair (p, &x3, &y3) &&
-      parse_coordinate_pair (p, &x4, &y4) &&
-      parse_nonnegative_number (p, &w1) &&
+      parse_coordinate_pair (p, end, &x3, &y3) &&
+      parse_coordinate_pair (p, end, &x4, &y4) &&
+      parse_nonnegative_number (p, end, &w1) &&
       parse_string (p, "o") &&
-      parse_coordinate_pair (p, &x5, &y5) &&
-      parse_coordinate_pair (p, &x6, &y6) &&
-      parse_nonnegative_number (p, &w2) &&
+      parse_coordinate_pair (p, end, &x5, &y5) &&
+      parse_coordinate_pair (p, end, &x6, &y6) &&
+      parse_nonnegative_number (p, end, &w2) &&
       parse_string (p, "o") &&
-      parse_coordinate_pair (p, &x7, &y7) &&
-      parse_coordinate_pair (p, &x8, &y8) &&
-      parse_nonnegative_number (p, &w3) &&
+      parse_coordinate_pair (p, end, &x7, &y7) &&
+      parse_coordinate_pair (p, end, &x8, &y8) &&
+      parse_nonnegative_number (p, end, &w3) &&
       parse_string (p, "z"))
     {
       rr = y1;
@@ -293,6 +305,7 @@ parse_circle (const char **p,
 
 static gboolean
 parse_rounded_rect (const char     **p,
+                    const char      *end,
                     GskRoundedRect  *rr)
 {
   const char *o = *p;
@@ -301,31 +314,31 @@ parse_rounded_rect (const char     **p,
   double x8, y8, x9, y9, x10, y10, x11, y11;
   double x12, y12, w0, w1, w2, w3;
 
-  if (parse_coordinate_pair (p, &x0, &y0) &&
+  if (parse_coordinate_pair (p, end, &x0, &y0) &&
       parse_string (p, "L") &&
-      parse_coordinate_pair (p, &x1, &y1) &&
+      parse_coordinate_pair (p, end, &x1, &y1) &&
       parse_string (p, "O") &&
-      parse_coordinate_pair (p, &x2, &y2) &&
-      parse_coordinate_pair (p, &x3, &y3) &&
-      parse_nonnegative_number (p, &w0) &&
+      parse_coordinate_pair (p, end, &x2, &y2) &&
+      parse_coordinate_pair (p, end, &x3, &y3) &&
+      parse_nonnegative_number (p, end, &w0) &&
       parse_string (p, "L") &&
-      parse_coordinate_pair (p, &x4, &y4) &&
+      parse_coordinate_pair (p, end, &x4, &y4) &&
       parse_string (p, "O") &&
-      parse_coordinate_pair (p, &x5, &y5) &&
-      parse_coordinate_pair (p, &x6, &y6) &&
-      parse_nonnegative_number (p, &w1) &&
+      parse_coordinate_pair (p, end, &x5, &y5) &&
+      parse_coordinate_pair (p, end, &x6, &y6) &&
+      parse_nonnegative_number (p, end, &w1) &&
       parse_string (p, "L") &&
-      parse_coordinate_pair (p, &x7, &y7) &&
+      parse_coordinate_pair (p, end, &x7, &y7) &&
       parse_string (p, "O") &&
-      parse_coordinate_pair (p, &x8, &y8) &&
-      parse_coordinate_pair (p, &x9, &y9) &&
-      parse_nonnegative_number (p, &w2) &&
+      parse_coordinate_pair (p, end, &x8, &y8) &&
+      parse_coordinate_pair (p, end, &x9, &y9) &&
+      parse_nonnegative_number (p, end, &w2) &&
       parse_string (p, "L") &&
-      parse_coordinate_pair (p, &x10, &y10) &&
+      parse_coordinate_pair (p, end, &x10, &y10) &&
       parse_string (p, "O") &&
-      parse_coordinate_pair (p, &x11, &y11) &&
-      parse_coordinate_pair (p, &x12, &y12) &&
-      parse_nonnegative_number (p, &w3) &&
+      parse_coordinate_pair (p, end, &x11, &y11) &&
+      parse_coordinate_pair (p, end, &x12, &y12) &&
+      parse_nonnegative_number (p, end, &w3) &&
       parse_string (p, "Z"))
     {
       if (NEAR (x0, x12) && NEAR (y0, y12) &&
@@ -523,6 +536,7 @@ gsk_path_parse_full (const char    *string,
   double prev_x1, prev_y1;
   double path_x, path_y; /* start point of the current subpath */
   const char *p;
+  const char *end;
   char cmd;
   char prev_cmd;
   gboolean after_comma;
@@ -535,6 +549,7 @@ gsk_path_parse_full (const char    *string,
   after_comma = FALSE;
 
   p = string;
+  end = string + strlen (string);
   while (*p)
     {
       prev_cmd = g_ascii_toupper (cmd);
@@ -567,7 +582,7 @@ gsk_path_parse_full (const char    *string,
             GskRoundedRect rr;
 
             /* Look for special contours */
-            if (parser->add_rect && parse_rectangle (&p, &x1, &y1, &w, &h))
+            if (parser->add_rect && parse_rectangle (&p, end, &x1, &y1, &w, &h))
               {
                 if (cmd == 'm')
                   {
@@ -584,7 +599,7 @@ gsk_path_parse_full (const char    *string,
                 x = x1;
                 y = y1;
               }
-            else if (parser->add_circle && parse_circle (&p, &x1, &y1, &r))
+            else if (parser->add_circle && parse_circle (&p, end, &x1, &y1, &r))
               {
                 if (cmd == 'm')
                   {
@@ -601,7 +616,7 @@ gsk_path_parse_full (const char    *string,
                 x = x1 + r;
                 y = y1;
               }
-            else if (parser->add_rounded_rect && parse_rounded_rect (&p, &rr))
+            else if (parser->add_rounded_rect && parse_rounded_rect (&p, end, &rr))
               {
                 if (cmd == 'm')
                   {
@@ -618,7 +633,7 @@ gsk_path_parse_full (const char    *string,
                 x = rr.bounds.origin.x + rr.corner[GSK_CORNER_TOP_LEFT].width;
                 y = rr.bounds.origin.y;
               }
-            else if (parse_coordinate_pair (&p, &x1, &y1))
+            else if (parse_coordinate_pair (&p, end, &x1, &y1))
               {
                 if (cmd == 'm')
                   {
@@ -650,7 +665,7 @@ gsk_path_parse_full (const char    *string,
           {
             double x1, y1;
 
-            if (parse_coordinate_pair (&p, &x1, &y1))
+            if (parse_coordinate_pair (&p, end, &x1, &y1))
               {
                 if (cmd == 'l')
                   {
@@ -678,7 +693,7 @@ gsk_path_parse_full (const char    *string,
           {
             double x1;
 
-            if (parse_coordinate (&p, &x1))
+            if (parse_coordinate (&p, end, &x1))
               {
                 if (cmd == 'h')
                   x1 += x;
@@ -702,7 +717,7 @@ gsk_path_parse_full (const char    *string,
           {
             double y1;
 
-            if (parse_coordinate (&p, &y1))
+            if (parse_coordinate (&p, end, &y1))
               {
                 if (cmd == 'v')
                   y1 += y;
@@ -726,9 +741,9 @@ gsk_path_parse_full (const char    *string,
           {
             double x0, y0, x1, y1, x2, y2;
 
-            if (parse_coordinate_pair (&p, &x0, &y0) &&
-                parse_coordinate_pair (&p, &x1, &y1) &&
-                parse_coordinate_pair (&p, &x2, &y2))
+            if (parse_coordinate_pair (&p, end, &x0, &y0) &&
+                parse_coordinate_pair (&p, end, &x1, &y1) &&
+                parse_coordinate_pair (&p, end, &x2, &y2))
               {
                 if (cmd == 'c')
                   {
@@ -761,8 +776,8 @@ gsk_path_parse_full (const char    *string,
           {
             double x0, y0, x1, y1, x2, y2;
 
-            if (parse_coordinate_pair (&p, &x1, &y1) &&
-                parse_coordinate_pair (&p, &x2, &y2))
+            if (parse_coordinate_pair (&p, end, &x1, &y1) &&
+                parse_coordinate_pair (&p, end, &x2, &y2))
               {
                 if (cmd == 's')
                   {
@@ -804,8 +819,8 @@ gsk_path_parse_full (const char    *string,
           {
             double x1, y1, x2, y2;
 
-            if (parse_coordinate_pair (&p, &x1, &y1) &&
-                parse_coordinate_pair (&p, &x2, &y2))
+            if (parse_coordinate_pair (&p, end, &x1, &y1) &&
+                parse_coordinate_pair (&p, end, &x2, &y2))
               {
                 if (cmd == 'q')
                   {
@@ -836,7 +851,7 @@ gsk_path_parse_full (const char    *string,
           {
             double x1, y1, x2, y2;
 
-            if (parse_coordinate_pair (&p, &x2, &y2))
+            if (parse_coordinate_pair (&p, end, &x2, &y2))
               {
                 if (cmd == 't')
                   {
@@ -875,9 +890,9 @@ gsk_path_parse_full (const char    *string,
           {
             double x1, y1, x2, y2, weight;
 
-            if (parse_coordinate_pair (&p, &x1, &y1) &&
-                parse_coordinate_pair (&p, &x2, &y2) &&
-                parse_nonnegative_number (&p, &weight))
+            if (parse_coordinate_pair (&p, end, &x1, &y1) &&
+                parse_coordinate_pair (&p, end, &x2, &y2) &&
+                parse_nonnegative_number (&p, end, &weight))
               {
                 if (cmd == 'o')
                   {
@@ -909,12 +924,12 @@ gsk_path_parse_full (const char    *string,
             int large_arc, sweep;
             double x1, y1;
 
-            if (parse_nonnegative_number (&p, &rx) &&
-                parse_nonnegative_number (&p, &ry) &&
-                parse_number (&p, &x_axis_rotation) &&
+            if (parse_nonnegative_number (&p, end, &rx) &&
+                parse_nonnegative_number (&p, end, &ry) &&
+                parse_number (&p, end, &x_axis_rotation) &&
                 parse_flag (&p, &large_arc) &&
                 parse_flag (&p, &sweep) &&
-                parse_coordinate_pair (&p, &x1, &y1))
+                parse_coordinate_pair (&p, end, &x1, &y1))
               {
                 if (cmd == 'a')
                   {
