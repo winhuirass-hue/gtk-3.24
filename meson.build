@@ -1,4 +1,4 @@
-project('gtk', 'c',
+project('gtk', 'c', 'cpp',
         version: '4.21.4',
         default_options: [
           'buildtype=debugoptimized',

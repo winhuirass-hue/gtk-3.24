@@ -32,6 +32,8 @@
 
 #include "gdkhslaprivate.h"
 
+#include "fast_float_c.h"
+
 G_DEFINE_BOXED_TYPE (GdkRGBA, gdk_rgba,
                      gdk_rgba_copy, gdk_rgba_free)
 
@@ -132,15 +134,15 @@ gboolean
  *    rgb() or rgba() specification.
  */
 static gboolean
-parse_rgb_value (const char   *str,
-                 char        **endp,
-                 double       *number)
+parse_rgb_value (const char  *str,
+                 const char  *eos,
+                 const char **endp,
+                 double      *number)
 {
   const char *p;
 
-  *number = g_ascii_strtod (str, endp);
-  if (errno == ERANGE || *endp == str ||
-      isinf (*number) || isnan (*number))
+  *number = strtod_fast (str, eos, endp);
+  if (errno == ERANGE || *endp == str || isinf (*number) || isnan (*number))
     return FALSE;
 
   p = *endp;
@@ -149,12 +151,12 @@ parse_rgb_value (const char   *str,
 
   if (*p == '%')
     {
-      *endp = (char *)(p + 1);
-      *number = CLAMP(*number / 100., 0., 1.);
+      *endp = p + 1;
+      *number = CLAMP (*number / 100., 0., 1.);
     }
   else
     {
-      *number = CLAMP(*number / 255., 0., 1.);
+      *number = CLAMP (*number / 255., 0., 1.);
     }
 
   return TRUE;
@@ -195,11 +197,11 @@ gdk_rgba_parse (GdkRGBA    *rgba,
   gboolean has_alpha;
   gboolean is_hsl;
   double r, g, b, a;
-  char *str = (char *) spec;
-  char *p;
+  const char *str = spec;
+  const char *eos;
+  const char *p;
 
   g_return_val_if_fail (spec != NULL, FALSE);
-
 
   if (strncmp (str, "rgba", 4) == 0)
     {
@@ -256,9 +258,13 @@ gdk_rgba_parse (GdkRGBA    *rgba,
 
   str++;
 
+  eos = strchr (str, ')');
+  if (!eos)
+    return FALSE;
+
   /* Parse red */
   SKIP_WHITESPACES (str);
-  if (!parse_rgb_value (str, &str, &r))
+  if (!parse_rgb_value (str, eos, &str, &r))
     return FALSE;
   SKIP_WHITESPACES (str);
 
@@ -269,7 +275,7 @@ gdk_rgba_parse (GdkRGBA    *rgba,
 
   /* Parse green */
   SKIP_WHITESPACES (str);
-  if (!parse_rgb_value (str, &str, &g))
+  if (!parse_rgb_value (str, eos, &str, &g))
     return FALSE;
   SKIP_WHITESPACES (str);
 
@@ -280,7 +286,7 @@ gdk_rgba_parse (GdkRGBA    *rgba,
 
   /* Parse blue */
   SKIP_WHITESPACES (str);
-  if (!parse_rgb_value (str, &str, &b))
+  if (!parse_rgb_value (str, eos, &str, &b))
     return FALSE;
   SKIP_WHITESPACES (str);
 
@@ -292,9 +298,8 @@ gdk_rgba_parse (GdkRGBA    *rgba,
       str++;
 
       SKIP_WHITESPACES (str);
-      a = g_ascii_strtod (str, &p);
-      if (errno == ERANGE || p == str ||
-          isinf (a) || isnan (a))
+      a = strtod_fast (str, eos, &p);
+      if (errno == ERANGE || p == str || isinf (a) || isnan (a))
         return FALSE;
       str = p;
       SKIP_WHITESPACES (str);
