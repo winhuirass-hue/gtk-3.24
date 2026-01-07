@@ -493,6 +493,17 @@ gdk_keymap_get_cached_entries_for_keyval (GdkKeymap     *keymap,
   guint offset;
   guint len;
 
+  if (!keyval) 
+    {
+      /**
+       * Keymap can contain more than 255 empty spots with keyval=0.
+       * No point retrieving them all.
+       */
+      *n_keys = 0;
+      *keys = &g_array_index (keymap->cached_keys, GdkKeymapKey, 0);
+      return;
+    }
+
   /* avoid using the first entry in cached_keys, so we can
    * use 0 to mean 'not cached'
    */
@@ -506,7 +517,7 @@ gdk_keymap_get_cached_entries_for_keyval (GdkKeymap     *keymap,
       len = keymap->cached_keys->len - offset;
       g_assert (len <= 255);
 
-      cached = (offset << 8) | len;
+      cached = (offset << 8) | (len & 0xff);
 
       g_hash_table_insert (keymap->cache, GUINT_TO_POINTER (keyval), GUINT_TO_POINTER (cached));
     }
