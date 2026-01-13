@@ -2096,17 +2096,23 @@ gtk_list_base_set_adjustment_values (GtkListBase    *self,
 {
   GtkListBasePrivate *priv = gtk_list_base_get_instance_private (self);
 
+  if (gtk_list_base_adjustment_is_flipped (self, orientation))
+    value = size - page_size - value;
+
+  double new_value = gtk_adjustment_get_value(priv->adjustment[orientation]);
+  if (value != (int) new_value)
+    new_value = value;
+
   size = MAX (size, page_size);
-  value = MAX (value, 0);
-  value = MIN (value, size - page_size);
+  new_value = MAX (new_value, 0);
+  new_value = MIN (new_value, size - page_size);
 
   g_signal_handlers_block_by_func (priv->adjustment[orientation],
                                    gtk_list_base_adjustment_value_changed_cb,
                                    self);
+
   gtk_adjustment_configure (priv->adjustment[orientation],
-                            gtk_list_base_adjustment_is_flipped (self, orientation)
-                              ? size - page_size - value
-                              : value,
+                            new_value,
                             0,
                             size,
                             page_size * 0.1,
