@@ -6554,7 +6554,8 @@ gtk_tree_view_top_row_to_dy (GtkTreeView *tree_view)
   new_dy = MAX (0, new_dy);
 
   priv->in_top_row_to_dy = TRUE;
-  gtk_adjustment_set_value (priv->vadjustment, (double)new_dy);
+  if (new_dy != (int) gtk_adjustment_get_value (priv->vadjustment))
+    gtk_adjustment_set_value (priv->vadjustment, (double)new_dy);
   priv->in_top_row_to_dy = FALSE;
 }
 
