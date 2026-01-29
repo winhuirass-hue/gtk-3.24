@@ -1,6 +1,5 @@
-
 /*
- * Copyright © 2025 Red Hat, Inc.
+ * Copyright © Red Hat
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -14,19 +13,20 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Matthias Clasen <mclasen@redhat.com>
  */
-
 
 #pragma once
 
-#include "gtkapplicationwindow.h"
-#include "gtksave.h"
+#include <gio/gio.h>
+#include <gtk/gtksave.h>
 
 G_BEGIN_DECLS
 
-void         gtk_application_window_save            (GtkApplicationWindow *window,
-                                                     GtkSave              *save);
+typedef void   (*GtkSaveCallback)              (GVariant        *result,
+                                                gpointer         data);
+
+GtkSave*         gtk_save_new                  (GtkSaveCallback  callback,
+                                                gpointer         data);
 
 G_END_DECLS
+

@@ -143,7 +143,7 @@ screensaver_signal_portal (GDBusConnection *connection,
 
           g_dbus_proxy_call (dbus->inhibit_proxy,
                              "QueryEndResponse",
-                             g_variant_new ("(o)", dbus->session_path),
+                             g_variant_new ("(o)", dbus->inhibit_session_path),
                              G_DBUS_CALL_FLAGS_NONE,
                              G_MAXINT,
                              NULL,
@@ -192,7 +192,10 @@ get_state_file (GtkApplicationImpl *impl,
   else if (dbus->instance_id)
     instance_id = dbus->instance_id;
   else
-    instance_id = "fallback";
+    {
+      GTK_DEBUG (SESSION, "Session didn't report an instance_id, so we're using \"fallback\"!");
+      instance_id = "fallback";
+    }
 
   dir = g_get_user_state_dir ();
 
@@ -217,49 +220,116 @@ debug_override_restore_reason (GtkRestoreReason *reason)
     g_warning ("Unknown GTK_OVERRIDE_RESTORE_REASON value: %s", str);
 }
 
+static void
+save_restore_signal (GDBusConnection *connection,
+                     const char      *sender_name,
+                     const char      *object_path,
+                     const char      *interface_name,
+                     const char      *signal_name,
+                     GVariant        *parameters,
+                     gpointer         data)
+{
+  GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *)data;
+  GtkApplication *app = GTK_APPLICATION (dbus->impl.application);
+
+  if (g_str_equal (signal_name, "SaveHint"))
+    {
+      gtk_application_save (app);
+
+      g_dbus_proxy_call (dbus->save_restore_proxy,
+                         "SaveHintResponse",
+                         g_variant_new ("(s)", dbus->save_restore_session_path),
+                         G_DBUS_CALL_FLAGS_NONE,
+                         -1,
+                         dbus->cancellable,
+                         NULL, NULL);
+    }
+  else if (g_str_equal (signal_name, "Quit"))
+    {
+      g_application_quit (G_APPLICATION (app));
+    }
+}
+
 static gboolean
-request_restore (GtkApplicationImplDBus *dbus)
+register_save_restore_portal (GtkApplicationImplDBus *dbus)
 {
   GtkApplicationImpl *impl = (GtkApplicationImpl*) dbus;
-  const char *app_id;
-  g_autoptr (GError) error = NULL;
-  g_autoptr (GVariant) reply = NULL;
-  g_autoptr (GVariantIter) discard_iter = NULL;
+  GError *error = NULL;
+  char *token;
+  GVariantBuilder options_builder;
+  GVariant *reply = NULL;
+  GVariant *registration = NULL;
+  GVariantIter *discard_iter = NULL;
   gboolean discarded_any = FALSE;
-  GVariantBuilder discarded;
+  GVariantBuilder discarded_builder;
   const char *discard = NULL;
 
-  app_id = g_application_get_application_id (G_APPLICATION (dbus->impl.application));
+  if (dbus->save_restore_session_path)
+    return TRUE; /* Already registered */
 
-  reply = g_dbus_connection_call_sync (dbus->session,
-                                       "org.gnome.SessionManager",
-                                       "/org/gnome/SessionManager",
-                                       "org.gnome.SessionManager",
-                                       "RegisterRestore",
-                                       g_variant_new ("(ss)", app_id, ""),
-                                       G_VARIANT_TYPE ("(usas)"),
-                                       G_DBUS_CALL_FLAGS_NONE,
-                                       -1,
-                                       NULL,
-                                       &error);
-  if (!reply)
+  if (!gdk_display_should_use_portal (impl->display,
+                                      PORTAL_SAVE_RESTORE_INTERFACE, 1))
+    return FALSE;
+
+  dbus->save_restore_proxy =
+    gtk_application_get_proxy_if_service_present (dbus->session,
+                                                  G_DBUS_PROXY_FLAGS_NONE,
+                                                  PORTAL_BUS_NAME,
+                                                  PORTAL_OBJECT_PATH,
+                                                  PORTAL_SAVE_RESTORE_INTERFACE,
+                                                  &error);
+  if (error)
     {
-      if (g_error_matches (error, G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_METHOD))
-        GTK_DEBUG (SESSION, "gnome-session does not support session saving");
-      else
-        g_warning ("Failed to register restore: %s", error->message);
+      g_debug ("Failed to get a save/restore portal proxy: %s", error->message);
+      g_clear_error (&error);
       return FALSE;
     }
 
-  g_variant_get (reply, "(usas)", &dbus->reason, &dbus->instance_id, &discard_iter);
+  dbus->save_restore_session_path = gtk_get_portal_session_path (dbus->session,
+                                                                 &token);
+  dbus->save_restore_handler =
+    g_dbus_connection_signal_subscribe (dbus->session,
+                                        PORTAL_BUS_NAME,
+                                        PORTAL_SAVE_RESTORE_INTERFACE,
+                                        NULL,
+                                        PORTAL_OBJECT_PATH,
+                                        NULL,
+                                        G_DBUS_SIGNAL_FLAGS_NO_MATCH_RULE,
+                                        save_restore_signal,
+                                        dbus,
+                                        NULL);
+
+  g_variant_builder_init (&options_builder, G_VARIANT_TYPE_VARDICT);
+  g_variant_builder_add (&options_builder, "{sv}", "session_handle_token",
+                         g_variant_new_string (token));
+  g_free (token);
+
+  reply = g_dbus_proxy_call_sync (dbus->save_restore_proxy,
+                                  "Register",
+                                  g_variant_new ("(a{sv})", &options_builder),
+                                  G_DBUS_CALL_FLAGS_NONE,
+                                  -1,
+                                  NULL,
+                                  &error);
+  if (!reply)
+    {
+      g_warning ("Failed to register with save/restore portal: %s", error->message);
+      g_clear_error (&error);
+      return FALSE;
+    }
+
+  g_variant_get (reply, "(o@a{sv})", NULL, &registration);
+  g_variant_unref (reply);
+  g_variant_lookup (registration, "instance-id", "s", &dbus->instance_id);
+  g_variant_lookup (registration, "restore-reason", "u", &dbus->reason);
+  g_variant_lookup (registration, "discard-instance-ids", "as", &discard_iter);
+  g_variant_unref (registration);
 
   GTK_DEBUG (SESSION, "Registered restore, reason %s instance-id %s",
              g_enum_get_value (g_type_class_get (GTK_TYPE_RESTORE_REASON), dbus->reason)->value_nick,
              dbus->instance_id);
 
-  g_variant_builder_init (&discarded, G_VARIANT_TYPE ("(sas)"));
-  g_variant_builder_add (&discarded, "s", app_id);
-  g_variant_builder_open (&discarded, G_VARIANT_TYPE ("as"));
+  g_variant_builder_init (&discarded_builder, G_VARIANT_TYPE ("as"));
   while (g_variant_iter_loop (discard_iter, "s", &discard))
     {
       char *path;
@@ -270,30 +340,57 @@ request_restore (GtkApplicationImplDBus *dbus)
 
       if (g_remove (path) < 0)
         {
-          g_warning ("Failed to remove discarded state file '%s': %m", path);
+          if (errno != ENOENT)
+            g_warning ("Failed to remove discarded state file '%s': %m", path);
           g_free (path);
           continue;
         }
 
       g_free (path);
       discarded_any = TRUE;
-      g_variant_builder_add (&discarded, "s", discard);
+      g_variant_builder_add (&discarded_builder, "s", discard);
     }
-  g_variant_builder_close (&discarded);
+  g_variant_iter_free (discard_iter);
 
   if (discarded_any)
-    g_dbus_connection_call_sync (dbus->session,
-                                 "org.gnome.SessionManager",
-                                 "/org/gnome/SessionManager",
-                                 "org.gnome.SessionManager",
-                                 "DeletedInstanceIds",
-                                 g_variant_builder_end (&discarded),
-                                 NULL,
-                                 G_DBUS_CALL_FLAGS_NONE,
-                                 -1,
-                                 NULL,
-                                 NULL);
+    g_dbus_proxy_call (dbus->save_restore_proxy,
+                       "DiscardedInstanceIds",
+                       g_variant_new ("(oas)",
+                                      dbus->save_restore_session_path,
+                                      &discarded_builder),
+                       G_DBUS_CALL_FLAGS_NONE,
+                       -1,
+                       dbus->cancellable,
+                       NULL, NULL);
+
   return TRUE;
+}
+
+static void
+drop_save_restore_portal (GtkApplicationImplDBus *dbus)
+{
+  if (dbus->save_restore_session_path)
+    {
+      g_dbus_connection_call (dbus->session,
+                              PORTAL_BUS_NAME,
+                              dbus->save_restore_session_path,
+                              PORTAL_SESSION_INTERFACE,
+                              "Close",
+                              NULL, NULL, 0, -1, NULL, NULL, NULL);
+      g_clear_pointer (&dbus->save_restore_session_path, g_free);
+    }
+
+  if (dbus->save_restore_handler)
+    {
+      g_dbus_connection_signal_unsubscribe (dbus->session,
+                                            dbus->save_restore_handler);
+      dbus->save_restore_handler = 0;
+    }
+
+  g_clear_object (&dbus->save_restore_proxy);
+
+  dbus->reason = GTK_RESTORE_REASON_LAUNCH;
+  g_clear_pointer (&dbus->instance_id, g_free);
 }
 
 static void
@@ -314,7 +411,7 @@ gtk_application_impl_dbus_startup (GtkApplicationImpl *impl,
   if (!dbus->session)
     return;
 
-  if (!support_save || !request_restore (dbus))
+  if (!support_save || !register_save_restore_portal (dbus))
     {
       dbus->reason = GTK_RESTORE_REASON_LAUNCH;
       dbus->instance_id = NULL;
@@ -343,7 +440,7 @@ gtk_application_impl_dbus_startup (GtkApplicationImpl *impl,
 
   /* Monitor screensaver state */
 
-  dbus->session_path = gtk_get_portal_session_path (dbus->session, &token);
+  dbus->inhibit_session_path = gtk_get_portal_session_path (dbus->session, &token);
   dbus->state_changed_handler =
       g_dbus_connection_signal_subscribe (dbus->session,
                                           PORTAL_BUS_NAME,
@@ -377,21 +474,6 @@ gtk_application_impl_dbus_shutdown (GtkApplicationImpl *impl)
 {
   GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) impl;
   g_cancellable_cancel (dbus->cancellable);
-
-  if (dbus->instance_id)
-    g_dbus_connection_call_sync (dbus->session,
-                                 "org.gnome.SessionManager",
-                                 "/org/gnome/SessionManager",
-                                 "org.gnome.SessionManager",
-                                 "UnregisterRestore",
-                                 g_variant_new ("(ss)",
-                                                g_application_get_application_id (G_APPLICATION (impl->application)),
-                                                dbus->instance_id),
-                                 NULL,
-                                 G_DBUS_CALL_FLAGS_NONE,
-                                 -1,
-                                 NULL,
-                                 NULL);
 }
 
 GQuark gtk_application_impl_dbus_export_id_quark (void);
@@ -671,11 +753,21 @@ gtk_application_impl_dbus_store_state (GtkApplicationImpl *impl,
 static void
 gtk_application_impl_dbus_forget_state (GtkApplicationImpl *impl)
 {
+  GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) impl;
   char *file;
 
   file = get_state_file (impl, NULL);
   g_remove (file);
   g_free (file);
+
+  drop_save_restore_portal (dbus);
+}
+
+static void
+gtk_application_impl_dbus_unforget_state (GtkApplicationImpl *impl)
+{
+  GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) impl;
+  register_save_restore_portal (dbus);
 }
 
 static GVariant *
@@ -724,21 +816,23 @@ gtk_application_impl_dbus_finalize (GObject *object)
 {
   GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) object;
 
-  if (dbus->session_path)
+  if (dbus->inhibit_session_path)
     {
       g_dbus_connection_call (dbus->session,
                               PORTAL_BUS_NAME,
-                              dbus->session_path,
+                              dbus->inhibit_session_path,
                               PORTAL_SESSION_INTERFACE,
                               "Close",
                               NULL, NULL, 0, -1, NULL, NULL, NULL);
 
-      g_free (dbus->session_path);
+      g_free (dbus->inhibit_session_path);
     }
 
   if (dbus->state_changed_handler)
     g_dbus_connection_signal_unsubscribe (dbus->session,
                                           dbus->state_changed_handler);
+
+  drop_save_restore_portal (dbus);
 
   g_clear_object (&dbus->inhibit_proxy);
   g_slist_free_full (dbus->inhibit_handles, inhibit_handle_free);
@@ -770,6 +864,7 @@ gtk_application_impl_dbus_class_init (GtkApplicationImplDBusClass *class)
   impl_class->clear_restore_reason = gtk_application_impl_dbus_clear_restore_reason;
   impl_class->store_state = gtk_application_impl_dbus_store_state;
   impl_class->forget_state = gtk_application_impl_dbus_forget_state;
+  impl_class->unforget_state = gtk_application_impl_dbus_unforget_state;
   impl_class->retrieve_state = gtk_application_impl_dbus_retrieve_state;
 
   gobject_class->finalize = gtk_application_impl_dbus_finalize;
