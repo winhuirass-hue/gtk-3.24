@@ -231,6 +231,7 @@ struct _GdkWaylandPopup
     int y;
   } next_layout;
 
+  gboolean map_ack;
   uint32_t reposition_token;
   uint32_t received_reposition_token;
 
@@ -467,6 +468,8 @@ xdg_popup_configure (void             *data,
   GdkWaylandPopup *wayland_popup = GDK_WAYLAND_POPUP (data);
 
   gdk_wayland_surface_handle_configure_popup (wayland_popup, x, y, width, height);
+
+  wayland_popup->map_ack = TRUE;
 }
 
 static void
@@ -479,6 +482,8 @@ xdg_popup_done (void             *data,
   GDK_DISPLAY_DEBUG (gdk_surface_get_display (surface), EVENTS, "done %p", surface);
 
   gdk_surface_hide (surface);
+
+  wayland_popup->map_ack = TRUE;
 }
 
 static void
@@ -1290,6 +1295,9 @@ gdk_wayland_surface_map_popup (GdkWaylandPopup *wayland_popup,
   wayland_popup->unconstrained_width = width;
   wayland_popup->unconstrained_height = height;
   wayland_surface->mapped = TRUE;
+
+  while (!wayland_popup->map_ack)
+    gdk_wayland_display_dispatch_queue (surface->display, wayland_surface->event_queue);
 }
 
 static void
