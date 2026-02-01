@@ -30,7 +30,6 @@
 #endif
 
 #include <glib.h>
-#include <gio/gio.h>
 #include "gdkwayland.h"
 #include "gdkdisplay.h"
 #include "gdkdisplay-wayland.h"
@@ -781,18 +780,52 @@ _gdk_wayland_display_open (const char *display_name)
   struct wl_display *wl_display;
   GdkDisplay *display;
   GdkWaylandDisplay *display_wayland;
+  char *computed_display_name = NULL;
 
   GDK_DEBUG (MISC, "opening display %s", display_name ? display_name : "");
 
   wl_log_set_handler_client (log_handler);
 
+  /* Compute the effective display name before connecting.
+   * This is important because wl_display_connect() will unsetenv("WAYLAND_SOCKET")
+   * after using it, making it impossible to reconstruct the name later.
+   */
+  if (display_name != NULL)
+    {
+      computed_display_name = g_strdup (display_name);
+    }
+  else
+    {
+      const char *wayland_socket = g_getenv ("WAYLAND_SOCKET");
+
+      if (wayland_socket != NULL)
+        {
+          /* WAYLAND_SOCKET is used by compositors (e.g. sway, weston) to pass
+           * a pre-connected socket fd to special clients like XWayland, status
+           * bars, or notification dialogs. This is always an anonymous socket
+           * from socketpair(), so there's no recoverable path. Child processes
+           * cannot reconnect - they would need their own WAYLAND_SOCKET setup.
+           */
+          computed_display_name = g_strdup ("wayland-socket");
+        }
+      else
+        {
+          const char *wayland_display = g_getenv ("WAYLAND_DISPLAY");
+          computed_display_name = g_strdup (wayland_display != NULL ? wayland_display : "wayland-0");
+        }
+    }
+
   wl_display = wl_display_connect (display_name);
   if (!wl_display)
-    return NULL;
+    {
+      g_free (computed_display_name);
+      return NULL;
+    }
 
   display = g_object_new (GDK_TYPE_WAYLAND_DISPLAY, NULL);
   display_wayland = GDK_WAYLAND_DISPLAY (display);
   display_wayland->wl_display = wl_display;
+  display_wayland->display_name = computed_display_name;
   gdk_wayland_display_install_gsources (display_wayland);
 
   display_wayland->color = gdk_wayland_color_new (display_wayland);
@@ -952,6 +985,7 @@ gdk_wayland_display_finalize (GObject *object)
   g_object_unref (display_wayland->monitors);
 
   g_free (display_wayland->startup_notification_id);
+  g_free (display_wayland->display_name);
   xkb_context_unref (display_wayland->xkb_context);
 
   g_clear_object (&display_wayland->settings_portal);
@@ -964,13 +998,9 @@ gdk_wayland_display_finalize (GObject *object)
 static const char *
 gdk_wayland_display_get_name (GdkDisplay *display)
 {
-  const char *name;
+  GdkWaylandDisplay *display_wayland = GDK_WAYLAND_DISPLAY (display);
 
-  name = g_getenv ("WAYLAND_DISPLAY");
-  if (name == NULL)
-    name = "wayland-0";
-
-  return name;
+  return display_wayland->display_name;
 }
 
 static void

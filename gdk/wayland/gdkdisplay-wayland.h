@@ -164,6 +164,8 @@ struct _GdkWaylandDisplay
   char *session_id;
 
   gint64 last_bell_time_ms;
+
+  char *display_name;
 };
 
 struct _GdkWaylandDisplayClass
