@@ -19,12 +19,15 @@
 
 #include "config.h"
 
-#include "gtkcolordialog.h"
+#include "gtkcolordialogprivate.h"
 
 #include "deprecated/gtkcolorchooserdialog.h"
 #include "deprecated/gtkcolorchooser.h"
 #include "gtkbutton.h"
 #include "gtkdialogerror.h"
+
+#include "gdk/gdkcolorprivate.h"
+
 #include <glib/gi18n-lib.h>
 
 /**
@@ -362,6 +365,13 @@ cancelled_cb (GCancellable *cancellable,
 }
 
 static void
+color_free (gpointer v)
+{
+  gdk_color_finish ((GdkColor *) v);
+  g_free (v);
+}
+
+static void
 response_cb (GTask *task,
              int    response)
 {
@@ -375,14 +385,17 @@ response_cb (GTask *task,
   if (response == GTK_RESPONSE_OK)
     {
       GtkColorChooserDialog *window;
-      GdkRGBA color;
+      GdkRGBA rgba;
+      GdkColor *color;
 
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
       window = GTK_COLOR_CHOOSER_DIALOG (g_task_get_task_data (task));
-      gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (window), &color);
+      gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (window), &rgba);
 G_GNUC_END_IGNORE_DEPRECATIONS
 
-      g_task_return_pointer (task, gdk_rgba_copy (&color), (GDestroyNotify) gdk_rgba_free);
+      color = g_new (GdkColor, 1);
+      gdk_color_init_from_rgba (color, &rgba);
+      g_task_return_pointer (task, color, (GDestroyNotify) color_free);
     }
   else if (response == GTK_RESPONSE_CLOSE)
     g_task_return_new_error (task, GTK_DIALOG_ERROR, GTK_DIALOG_ERROR_CANCELLED, "Cancelled by application");
@@ -398,7 +411,7 @@ G_GNUC_END_IGNORE_DEPRECATIONS
 static GtkWidget *
 create_color_chooser (GtkColorDialog *self,
                       GtkWindow      *parent,
-                      const GdkRGBA  *initial_color)
+                      const GdkColor *initial)
 {
   GtkWidget *window;
   char *title;
@@ -410,8 +423,20 @@ create_color_chooser (GtkColorDialog *self,
 
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   window = gtk_color_chooser_dialog_new (title, parent);
-  if (initial_color)
-    gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (window), initial_color);
+  if (initial)
+    {
+      GdkColor color;
+      GdkRGBA rgba;
+
+      gdk_color_convert (&color, GDK_COLOR_STATE_SRGB, initial);
+      rgba.red = color.red;
+      rgba.green = color.green;
+      rgba.blue = color.blue;
+      rgba.alpha = color.alpha;
+
+      gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (window), &rgba);
+    }
+
   gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (window), self->with_alpha);
   gtk_window_set_modal (GTK_WINDOW (window), self->modal);
 G_GNUC_END_IGNORE_DEPRECATIONS
@@ -422,8 +447,8 @@ G_GNUC_END_IGNORE_DEPRECATIONS
 /* }}} */
 /* {{{ Async API */
 
-/**
- * gtk_color_dialog_choose_rgba:
+/*< private >
+ * gtk_color_chooser_chooser_color:
  * @self: a color dialog
  * @parent: (nullable): the parent window
  * @initial_color: (nullable): the color to select initially
@@ -433,16 +458,14 @@ G_GNUC_END_IGNORE_DEPRECATIONS
  * @user_data: data to pass to @callback
  *
  * Presents a color chooser dialog to the user.
- *
- * Since: 4.10
  */
 void
-gtk_color_dialog_choose_rgba (GtkColorDialog       *self,
-                              GtkWindow            *parent,
-                              const GdkRGBA        *initial_color,
-                              GCancellable         *cancellable,
-                              GAsyncReadyCallback   callback,
-                              gpointer              user_data)
+gtk_color_dialog_choose_color (GtkColorDialog      *self,
+                               GtkWindow           *parent,
+                               const GdkColor      *initial_color,
+                               GCancellable        *cancellable,
+                               GAsyncReadyCallback  callback,
+                               gpointer             user_data)
 {
   GtkWidget *window;
   GTask *task;
@@ -453,7 +476,7 @@ gtk_color_dialog_choose_rgba (GtkColorDialog       *self,
 
   task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_check_cancellable (task, FALSE);
-  g_task_set_source_tag (task, gtk_color_dialog_choose_rgba);
+  g_task_set_source_tag (task, gtk_color_dialog_choose_color);
   g_task_set_task_data (task, window, (GDestroyNotify) gtk_window_destroy);
 
   if (cancellable)
@@ -461,6 +484,70 @@ gtk_color_dialog_choose_rgba (GtkColorDialog       *self,
   g_signal_connect_swapped (window, "response", G_CALLBACK (response_cb), task);
 
   gtk_window_present (GTK_WINDOW (window));
+}
+
+/*< private>
+ * gtk_color_dialog_choose_color_finish:
+ * @self: a color dialog
+ * @result: the result
+ * @error: return location for a [enum@Gtk.DialogError] error
+ *
+ * Finishes the [method@Gtk.ColorDialog.choose_rgba] call
+ *
+ * Note that this function returns a [error@Gtk.DialogError.DISMISSED]
+ * error if the user cancels the dialog.
+ *
+ * Returns: (transfer full): the selected color
+ */
+GdkColor *
+gtk_color_dialog_choose_color_finish (GtkColorDialog  *self,
+                                      GAsyncResult    *result,
+                                      GError         **error)
+{
+  g_return_val_if_fail (GTK_IS_COLOR_DIALOG (self), NULL);
+  g_return_val_if_fail (g_task_is_valid (result, self), NULL);
+  g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == gtk_color_dialog_choose_color, NULL);
+
+  /* Destroy the dialog window not to be bound to GTask lifecycle */
+  g_task_set_task_data (G_TASK (result), NULL, NULL);
+
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/**
+ * gtk_color_dialog_choose_rgba:
+ * @self: a color dialog
+ * @parent: (nullable): the parent window
+ * @initial_rgba: (nullable): the color to select initially
+ * @cancellable: (nullable): a cancellable to cancel the operation
+ * @callback: (scope async) (closure user_data): a callback to call
+ *   when the operation is complete
+ * @user_data: data to pass to @callback
+ *
+ * Presents a color chooser dialog to the user.
+ *
+ * Since: 4.10
+ */
+void
+gtk_color_dialog_choose_rgba (GtkColorDialog      *self,
+                              GtkWindow           *parent,
+                              const GdkRGBA       *initial_rgba,
+                              GCancellable        *cancellable,
+                              GAsyncReadyCallback  callback,
+                              gpointer             user_data)
+{
+  GdkColor color;
+
+  g_return_if_fail (GTK_IS_COLOR_DIALOG (self));
+
+  if (initial_rgba)
+    gdk_color_init_from_rgba (&color, initial_rgba);
+
+  gtk_color_dialog_choose_color (self, parent,
+                                 initial_rgba ? &color : NULL,
+                                 cancellable,
+                                 callback,
+                                 user_data);
 }
 
 /**
@@ -483,14 +570,25 @@ gtk_color_dialog_choose_rgba_finish (GtkColorDialog  *self,
                                      GAsyncResult    *result,
                                      GError         **error)
 {
-  g_return_val_if_fail (GTK_IS_COLOR_DIALOG (self), NULL);
-  g_return_val_if_fail (g_task_is_valid (result, self), NULL);
-  g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == gtk_color_dialog_choose_rgba, NULL);
+  GdkColor *color;
+  GdkColor c;
+  GdkRGBA *rgba;
 
-  /* Destroy the dialog window not to be bound to GTask lifecycle */
-  g_task_set_task_data (G_TASK (result), NULL, NULL);
+  color = gtk_color_dialog_choose_color_finish (self, result, error);
 
-  return g_task_propagate_pointer (G_TASK (result), error);
+  gdk_color_convert (&c, GDK_COLOR_STATE_SRGB, color);
+  gdk_color_finish (color);
+  g_free (color);
+
+  rgba = g_new (GdkRGBA, 1);
+  rgba->red = c.red;
+  rgba->green = c.green;
+  rgba->blue = c.blue;
+  rgba->alpha = c.alpha;
+
+  gdk_color_finish (&c);
+
+  return rgba;
 }
 
 /* }}} */
