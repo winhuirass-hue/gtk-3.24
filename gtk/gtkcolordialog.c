@@ -25,8 +25,11 @@
 #include "deprecated/gtkcolorchooser.h"
 #include "gtkbutton.h"
 #include "gtkdialogerror.h"
+#include "gtkprivate.h"
 
 #include "gdk/gdkcolorprivate.h"
+#include "gdk/gdkrgbaprivate.h"
+#include "gtkmodulesprivate.h"
 
 #include <glib/gi18n-lib.h>
 
@@ -194,6 +197,138 @@ gtk_color_dialog_class_init (GtkColorDialogClass *class)
                             G_PARAM_READWRITE|G_PARAM_STATIC_STRINGS|G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, NUM_PROPERTIES, properties);
+}
+
+/* }}} */
+/* {{{ GtkColorSelection interface */
+
+G_DEFINE_INTERFACE (GtkColorSelection, gtk_color_selection, GTK_TYPE_WINDOW);
+
+static void
+gtk_color_selection_default_init (GtkColorSelectionInterface *iface)
+{
+}
+
+/* }}} */
+/* {{{ Extension point */
+
+GIOExtension *
+gtk_color_selection_get_extension (void)
+{
+  const char *extension_name;
+  GIOExtension *e;
+  GIOExtensionPoint *ep;
+
+  GTK_DEBUG (MODULES, "Looking up ColorSelection extension");
+
+  ep = g_io_extension_point_lookup (GTK_COLOR_SELECTION_EXTENSION_POINT_NAME);
+  e = NULL;
+
+  extension_name = g_getenv ("GTK_COLOR_SELECTION");
+  if (extension_name)
+    {
+      if (g_str_equal (extension_name, "help"))
+        {
+          GList *l;
+
+          g_print ("Supported arguments for GTK_COLOR_SELECTION environment variable:\n");
+
+          for (l = g_io_extension_point_get_extensions (ep); l; l = l->next)
+            {
+              e = l->data;
+
+              g_print ("%10s - %d\n", g_io_extension_get_name (e), g_io_extension_get_priority (e));
+            }
+
+          e = NULL;
+        }
+      else
+        {
+          e = g_io_extension_point_get_extension_by_name (ep, extension_name);
+          if (e == NULL)
+            {
+              g_warning ("Color selection extension \"%s\" from GTK_COLOR_SELECTION environment variable not found.", extension_name);
+            }
+        }
+    }
+
+  if (e == NULL)
+    {
+      GList *l = g_io_extension_point_get_extensions (ep);
+
+      if (l == NULL)
+        {
+          g_error ("GTK was run without any GtkColorSelection extension being present. This must not happen.");
+        }
+
+      e = l->data;
+    }
+
+  return e;
+}
+
+static GType
+gtk_color_selection_get_impl_type (void)
+{
+  static GType impl_type = G_TYPE_NONE;
+  GIOExtension *e;
+
+  if (G_LIKELY (impl_type != G_TYPE_NONE))
+    return impl_type;
+
+  e = gtk_color_selection_get_extension ();
+  impl_type = g_io_extension_get_type (e);
+
+  GTK_DEBUG (MODULES, "Using %s from \"%s\" extension",
+             g_type_name (impl_type), g_io_extension_get_name (e));
+
+  return impl_type;
+}
+
+void
+gtk_color_selection_extension_init (void)
+{
+  GIOExtensionPoint *ep;
+  GIOModuleScope *scope;
+  char **paths;
+  int i;
+
+  GTK_DEBUG (MODULES, "Registering extension point %s", GTK_COLOR_SELECTION_EXTENSION_POINT_NAME);
+
+  ep = g_io_extension_point_register (GTK_COLOR_SELECTION_EXTENSION_POINT_NAME);
+  g_io_extension_point_set_required_type (ep, GTK_TYPE_COLOR_SELECTION);
+
+  g_type_ensure (GTK_TYPE_COLOR_CHOOSER_DIALOG);
+
+  scope = g_io_module_scope_new (G_IO_MODULE_SCOPE_BLOCK_DUPLICATES);
+
+  paths = _gtk_get_module_path ("color");
+  for (i = 0; paths[i]; i++)
+    {
+      GTK_DEBUG (MODULES, "Scanning io modules in %s", paths[i]);
+      g_io_modules_scan_all_in_directory_with_scope (paths[i], scope);
+    }
+  g_strfreev (paths);
+
+  g_io_module_scope_free (scope);
+
+  if (GTK_DEBUG_CHECK (MODULES))
+    {
+      GList *list, *l;
+
+      list = g_io_extension_point_get_extensions (ep);
+      for (l = list; l; l = l->next)
+        {
+          GIOExtension *ext = l->data;
+          g_print ("extension: %s: type %s\n",
+                   g_io_extension_get_name (ext),
+                   g_type_name (g_io_extension_get_type (ext)));
+        }
+    }
+
+  /* If the env var is given, check at startup that things actually work */
+  if (g_getenv ("GTK_COLOR_SELECTION"))
+    gtk_color_selection_get_extension ();
 }
 
 /* }}} */
@@ -408,40 +543,17 @@ G_GNUC_END_IGNORE_DEPRECATIONS
   g_object_unref (task);
 }
 
-static GtkWidget *
-create_color_chooser (GtkColorDialog *self,
-                      GtkWindow      *parent,
-                      const GdkColor *initial)
+static GtkColorSelection *
+create_selection (GtkColorDialog *self,
+                  GtkWindow      *parent,
+                  const GdkColor *initial)
 {
-  GtkWidget *window;
-  char *title;
+  GtkColorSelection *selection;
 
-  if (self->title)
-    title = self->title;
-  else
-    title = _("Pick a Color");
+  selection = g_object_new (gtk_color_selection_get_impl_type (), NULL);
+  GTK_COLOR_SELECTION_GET_IFACE (selection)->setup (selection, parent, initial, self);
 
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-  window = gtk_color_chooser_dialog_new (title, parent);
-  if (initial)
-    {
-      GdkColor color;
-      GdkRGBA rgba;
-
-      gdk_color_convert (&color, GDK_COLOR_STATE_SRGB, initial);
-      rgba.red = color.red;
-      rgba.green = color.green;
-      rgba.blue = color.blue;
-      rgba.alpha = color.alpha;
-
-      gtk_color_chooser_set_rgba (GTK_COLOR_CHOOSER (window), &rgba);
-    }
-
-  gtk_color_chooser_set_use_alpha (GTK_COLOR_CHOOSER (window), self->with_alpha);
-  gtk_window_set_modal (GTK_WINDOW (window), self->modal);
-G_GNUC_END_IGNORE_DEPRECATIONS
-
-  return window;
+  return selection;
 }
 
 /* }}} */
@@ -467,23 +579,23 @@ gtk_color_dialog_choose_color (GtkColorDialog      *self,
                                GAsyncReadyCallback  callback,
                                gpointer             user_data)
 {
-  GtkWidget *window;
+  GtkColorSelection *selection;
   GTask *task;
 
   g_return_if_fail (GTK_IS_COLOR_DIALOG (self));
 
-  window = create_color_chooser (self, parent, initial_color);
+  selection = create_selection (self, parent, initial_color);
 
   task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_check_cancellable (task, FALSE);
   g_task_set_source_tag (task, gtk_color_dialog_choose_color);
-  g_task_set_task_data (task, window, (GDestroyNotify) gtk_window_destroy);
+  g_task_set_task_data (task, selection, (GDestroyNotify) gtk_window_destroy);
 
   if (cancellable)
     g_signal_connect (cancellable, "cancelled", G_CALLBACK (cancelled_cb), task);
-  g_signal_connect_swapped (window, "response", G_CALLBACK (response_cb), task);
+  g_signal_connect_swapped (selection, "response", G_CALLBACK (response_cb), task);
 
-  gtk_window_present (GTK_WINDOW (window));
+  gtk_window_present (GTK_WINDOW (selection));
 }
 
 /*< private>
@@ -507,7 +619,6 @@ gtk_color_dialog_choose_color_finish (GtkColorDialog  *self,
   g_return_val_if_fail (GTK_IS_COLOR_DIALOG (self), NULL);
   g_return_val_if_fail (g_task_is_valid (result, self), NULL);
   g_return_val_if_fail (g_task_get_source_tag (G_TASK (result)) == gtk_color_dialog_choose_color, NULL);
-
   /* Destroy the dialog window not to be bound to GTask lifecycle */
   g_task_set_task_data (G_TASK (result), NULL, NULL);
 
@@ -571,24 +682,29 @@ gtk_color_dialog_choose_rgba_finish (GtkColorDialog  *self,
                                      GError         **error)
 {
   GdkColor *color;
-  GdkColor c;
-  GdkRGBA *rgba;
 
   color = gtk_color_dialog_choose_color_finish (self, result, error);
 
-  gdk_color_convert (&c, GDK_COLOR_STATE_SRGB, color);
-  gdk_color_finish (color);
-  g_free (color);
+  if (color)
+    {
+      GdkColor c;
+      GdkRGBA *rgba;
 
-  rgba = g_new (GdkRGBA, 1);
-  rgba->red = c.red;
-  rgba->green = c.green;
-  rgba->blue = c.blue;
-  rgba->alpha = c.alpha;
+      gdk_color_convert (&c, GDK_COLOR_STATE_SRGB, color);
+      color_free (color);
 
-  gdk_color_finish (&c);
+      rgba = g_new (GdkRGBA, 1);
+      rgba->red = c.red;
+      rgba->green = c.green;
+      rgba->blue = c.blue;
+      rgba->alpha = c.alpha;
 
-  return rgba;
+      gdk_color_finish (&c);
+
+      return rgba;
+    }
+
+  return NULL;
 }
 
 /* }}} */

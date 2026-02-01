@@ -33,4 +33,33 @@ GdkColor *      gtk_color_dialog_choose_color_finish    (GtkColorDialog       *s
                                                          GAsyncResult         *result,
                                                          GError              **error);
 
+G_DECLARE_INTERFACE (GtkColorSelection, gtk_color_selection, GTK, COLOR_SELECTION, GtkWindow)
+
+struct _GtkColorSelectionInterface
+{
+  GTypeInterface base_interface;
+
+  void (* setup)     (GtkColorSelection *selection,
+                      GtkWindow         *parent,
+                      const GdkColor    *initial,
+                      GtkColorDialog    *self);
+
+  void (* get_color) (GtkColorSelection *selection,
+                      GdkColor          *color);
+
+  gpointer padding[12];
+};
+
+/**
+ * GTK_COLOR_SELECTION_EXTENSION_POINT_NAME:
+ *
+ * The default extension point name for color selection.
+ */
+#define GTK_COLOR_SELECTION_EXTENSION_POINT_NAME "gtk-color-selection"
+
+#define GTK_TYPE_COLOR_SELECTION (gtk_color_selection_get_type ())
+
+GIOExtension * gtk_color_selection_get_extension  (void);
+void           gtk_color_selection_extension_init (void);
+
 G_END_DECLS
