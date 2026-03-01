@@ -2756,6 +2756,26 @@ gdk_event_translate (MSG *msg,
 	  else
 	    unset_bits |= GDK_TOPLEVEL_STATE_MAXIMIZED;
 
+    typedef BOOL
+    (WINAPI *IsWindowArranged_t)(HWND window);
+    static IsWindowArranged_t user32_IsWindowArranged = NULL;
+    static gsize user32_dll_checked = 0;
+    if (g_once_init_enter (&user32_dll_checked))
+      {
+        HMODULE user32_dll = LoadLibraryW (L"user32.dll");
+        user32_IsWindowArranged = (IsWindowArranged_t)GetProcAddress (user32_dll, "IsWindowArranged");
+        g_once_init_leave (&user32_dll_checked, 1);
+      }
+
+    if (user32_IsWindowArranged && user32_IsWindowArranged (GDK_SURFACE_HWND (surface)))
+      {
+        set_bits |= GDK_TOPLEVEL_STATE_TILED;
+      }
+    else
+      {
+        unset_bits |= GDK_TOPLEVEL_STATE_TILED;
+      }
+
       /*
        * If we are minimizing, pause all surface layout computations, and re-start the
        * computation once we are coming out of a minimized state
