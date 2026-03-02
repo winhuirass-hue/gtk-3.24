@@ -2596,8 +2596,10 @@ gdk_event_translate (MSG *msg,
       switch (msg->wParam & 0xFFF0)
         {
         case SC_MINIMIZE:
+          do_show_surface (surface, TRUE);
+          break;
         case SC_RESTORE:
-          do_show_surface (surface, msg->wParam == SC_MINIMIZE ? TRUE : FALSE);
+          do_show_surface (surface, FALSE);
           break;
         }
 
