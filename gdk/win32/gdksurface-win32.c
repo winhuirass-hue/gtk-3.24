@@ -1780,7 +1780,6 @@ gdk_win32_toplevel_begin_resize (GdkToplevel    *toplevel,
   * manually release left mouse button, win32 will not send us a WM_LBUTTONUP
   * after we told them WM_NCLBUTTONDOWN.
   */
-  GdkWin32Surface *impl = GDK_WIN32_SURFACE (surface);
   GdkEvent *event = gdk_button_event_new (GDK_BUTTON_RELEASE,
                                           surface,
                                           device,
@@ -1833,7 +1832,6 @@ gdk_win32_toplevel_begin_move (GdkToplevel *toplevel,
   * manually release left mouse button, win32 will not send us a WM_LBUTTONUP
   * after we told them WM_NCLBUTTONDOWN.
   */
-  GdkWin32Surface *impl = GDK_WIN32_SURFACE (surface);
   GdkEvent *event = gdk_button_event_new (GDK_BUTTON_RELEASE,
                                           surface,
                                           device,
@@ -2139,8 +2137,6 @@ BOOL WINAPI
 GtkShowSurfaceHWND (GdkSurface *surface,
                     int         cmd_show)
 {
-  GdkWin32Surface *impl = GDK_WIN32_SURFACE (surface);
-
   return ShowWindow (GDK_SURFACE_HWND (surface), cmd_show);
 }
 
