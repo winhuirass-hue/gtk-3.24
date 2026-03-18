@@ -664,6 +664,11 @@ call_prepare_print (GtkPrintOperation *op,
       g_variant_builder_add (&opt_builder, "{sv}", "has_selected_pages", g_variant_new_boolean (priv->support_selection && priv->has_selection));
     }
 
+  if (gdk_display_should_use_portal (display, PORTAL_PRINT_INTERFACE, 5))
+    {
+      g_variant_builder_add (&opt_builder, "{sv}", "has_automatic_scale", g_variant_new_boolean (priv->support_auto_scale));
+    }
+
   portal->options = g_variant_builder_end (&opt_builder);
 
   if (priv->print_settings)
