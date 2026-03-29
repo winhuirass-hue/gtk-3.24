@@ -596,7 +596,6 @@ flush_smooth_scroll_event (GdkWaylandSeat *seat,
                                 gdk_wayland_device_get_modifiers (seat->logical_pointer),
                                 delta_x, delta_y,
                                 is_stop,
-                                GDK_SCROLL_UNIT_SURFACE,
                                 seat->pointer_info.frame.relative_direction);
 
   _gdk_wayland_display_deliver_event (seat->display, event);
@@ -3274,7 +3273,6 @@ tablet_tool_handle_wheel (void                      *data,
                                 gdk_wayland_device_get_modifiers (tablet->logical_device),
                                 0, clicks,
                                 FALSE,
-                                GDK_SCROLL_UNIT_WHEEL,
                                 GDK_SCROLL_RELATIVE_DIRECTION_UNKNOWN);
 
   _gdk_wayland_display_deliver_event (seat->display, event);
