@@ -521,6 +521,14 @@ gtk_css_animated_style_set_animated_value (GtkCssAnimatedStyle *animated,
       unshare_size (animated);
       gtk_css_take_value (&style->size->min_height, value);
       break;
+    case GTK_CSS_PROPERTY_MAX_WIDTH:
+      unshare_size (animated);
+      gtk_css_take_value (&style->size->max_width, value);
+      break;
+    case GTK_CSS_PROPERTY_MAX_HEIGHT:
+      unshare_size (animated);
+      gtk_css_take_value (&style->size->max_height, value);
+      break;
     case GTK_CSS_PROPERTY_TRANSITION_PROPERTY:
       unshare_transition (animated);
       gtk_css_take_value (&style->transition->transition_property, value);

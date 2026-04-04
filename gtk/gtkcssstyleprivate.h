@@ -224,6 +224,8 @@ struct _GtkCssSizeValues {
   GtkCssValue *border_spacing;
   GtkCssValue *min_width;
   GtkCssValue *min_height;
+  GtkCssValue *max_width;
+  GtkCssValue *max_height;
 };
 
 struct _GtkCssOtherValues {

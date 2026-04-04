@@ -538,6 +538,12 @@ gtk_css_static_style_set_value (GtkCssStaticStyle *sstyle,
     case GTK_CSS_PROPERTY_MIN_HEIGHT:
       gtk_css_take_value (&style->size->min_height, value);
       break;
+    case GTK_CSS_PROPERTY_MAX_WIDTH:
+      gtk_css_take_value (&style->size->max_width, value);
+      break;
+    case GTK_CSS_PROPERTY_MAX_HEIGHT:
+      gtk_css_take_value (&style->size->max_height, value);
+      break;
     case GTK_CSS_PROPERTY_TRANSITION_PROPERTY:
       gtk_css_take_value (&style->transition->transition_property, value);
       break;
@@ -829,6 +835,8 @@ gtk_css_size_create_initial_values (void)
   values->border_spacing = _gtk_css_initial_value_new_compute (GTK_CSS_PROPERTY_BORDER_SPACING, &context);
   values->min_width = _gtk_css_initial_value_new_compute (GTK_CSS_PROPERTY_MIN_WIDTH, &context);
   values->min_height = _gtk_css_initial_value_new_compute (GTK_CSS_PROPERTY_MIN_HEIGHT, &context);
+  values->max_width = _gtk_css_initial_value_new_compute (GTK_CSS_PROPERTY_MAX_WIDTH, &context);
+  values->max_height = _gtk_css_initial_value_new_compute (GTK_CSS_PROPERTY_MAX_HEIGHT, &context);
 
   return (GtkCssValues *)values;
 }

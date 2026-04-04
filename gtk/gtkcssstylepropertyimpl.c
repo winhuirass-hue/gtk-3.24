@@ -695,9 +695,21 @@ border_image_width_parse (GtkCssStyleProperty *property,
 }
 
 static GtkCssValue *
-minmax_parse (GtkCssStyleProperty *property,
-              GtkCssParser        *parser)
+min_size_parse (GtkCssStyleProperty *property,
+                GtkCssParser        *parser)
 {
+  return gtk_css_number_value_parse (parser,
+                                     GTK_CSS_PARSE_LENGTH
+                                     | GTK_CSS_POSITIVE_ONLY);
+}
+
+static GtkCssValue *
+max_size_parse (GtkCssStyleProperty *property,
+                GtkCssParser        *parser)
+{
+  if (gtk_css_parser_try_ident (parser, "none"))
+    return gtk_css_number_value_new (DBL_MAX, GTK_CSS_PX);
+
   return gtk_css_number_value_parse (parser,
                                      GTK_CSS_PARSE_LENGTH
                                      | GTK_CSS_POSITIVE_ONLY);
@@ -1338,14 +1350,26 @@ _gtk_css_style_property_init_properties (void)
                                           GTK_CSS_PROPERTY_MIN_WIDTH,
                                           GTK_STYLE_PROPERTY_ANIMATED,
                                           GTK_CSS_AFFECTS_SIZE,
-                                          minmax_parse,
+                                          min_size_parse,
                                           gtk_css_number_value_new (0, GTK_CSS_PX));
   gtk_css_style_property_register        ("min-height",
                                           GTK_CSS_PROPERTY_MIN_HEIGHT,
                                           GTK_STYLE_PROPERTY_ANIMATED,
                                           GTK_CSS_AFFECTS_SIZE,
-                                          minmax_parse,
+                                          min_size_parse,
                                           gtk_css_number_value_new (0, GTK_CSS_PX));
+  gtk_css_style_property_register        ("max-width",
+                                          GTK_CSS_PROPERTY_MAX_WIDTH,
+                                          GTK_STYLE_PROPERTY_ANIMATED,
+                                          GTK_CSS_AFFECTS_SIZE,
+                                          max_size_parse,
+                                          _gtk_css_ident_value_new ("none"));
+  gtk_css_style_property_register        ("max-height",
+                                          GTK_CSS_PROPERTY_MAX_HEIGHT,
+                                          GTK_STYLE_PROPERTY_ANIMATED,
+                                          GTK_CSS_AFFECTS_SIZE,
+                                          max_size_parse,
+                                          _gtk_css_ident_value_new ("none"));
 
   gtk_css_style_property_register        ("transition-property",
                                           GTK_CSS_PROPERTY_TRANSITION_PROPERTY,
