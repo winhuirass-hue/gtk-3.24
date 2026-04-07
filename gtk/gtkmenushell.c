@@ -656,6 +656,21 @@ gtk_menu_shell_button_press (GtkWidget      *widget,
 
   menu_item = gtk_menu_shell_get_item (menu_shell, (GdkEvent *)event);
 
+  /* Fix stale-active-flag bug: after drag/hover, priv->button is 0 but
+   * priv->active is TRUE. A click on the already-mapped submenu item
+   * should close it, not re-open it.
+   */
+  if (priv->active && !priv->button &&
+      menu_item != NULL &&
+      menu_item == priv->active_menu_item &&
+      GTK_MENU_ITEM (menu_item)->priv->submenu != NULL &&
+      gtk_widget_get_mapped (GTK_MENU_ITEM (menu_item)->priv->submenu))
+    {
+      gtk_menu_shell_deactivate (menu_shell);
+      g_signal_emit (menu_shell, menu_shell_signals[SELECTION_DONE], 0);
+      return TRUE;
+    }
+    
   if (menu_item && _gtk_menu_item_is_selectable (menu_item))
     {
       parent = gtk_widget_get_parent (menu_item);
