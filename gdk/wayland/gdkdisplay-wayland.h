@@ -133,6 +133,7 @@ struct _GdkWaylandDisplay
   struct xdg_toplevel_icon_manager_v1 *toplevel_icon;
   struct xdg_session_manager_v1 *session_manager;
   struct xdg_session_v1 *session;
+  struct xdg_dbus_annotation_manager_v1 *dbus_annotation_manager;
 
   GdkWaylandColor *color;
 

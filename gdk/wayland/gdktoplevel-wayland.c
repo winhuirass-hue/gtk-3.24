@@ -38,6 +38,7 @@
 #include <wayland/xdg-foreign-unstable-v2-client-protocol.h>
 #include <wayland/xdg-dialog-v1-client-protocol.h>
 #include <wayland/xdg-session-management-v1-client-protocol.h>
+#include <wayland/xdg-dbus-annotation-v1-client-protocol.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -168,6 +169,8 @@ struct _GdkWaylandToplevel
   struct zxdg_imported_v2 *imported_transient_for_v2;
   GHashTable *shortcuts_inhibitors;
 
+  struct xdg_dbus_annotation_v1 *a11y_dbus_annotation;
+
   GList *icons;
 };
 
@@ -253,6 +256,7 @@ static void maybe_set_gtk_surface_a11y_properties (GdkWaylandToplevel *wayland_t
 static void maybe_set_gtk_surface_modal (GdkWaylandToplevel *wayland_toplevel);
 static gboolean maybe_set_xdg_dialog_modal (GdkWaylandToplevel *wayland_toplevel);
 static gboolean maybe_set_xdg_toplevel_icon (GdkWaylandToplevel *wayland_toplevel);
+static void maybe_set_xdg_a11y_properties (GdkWaylandToplevel *wayland_toplevel);
 
 static void
 gdk_wayland_toplevel_hide_surface (GdkWaylandSurface *wayland_surface)
@@ -1017,6 +1021,7 @@ gdk_wayland_surface_create_xdg_toplevel (GdkWaylandToplevel *wayland_toplevel)
 
   maybe_set_gtk_surface_dbus_properties (wayland_toplevel);
   maybe_set_gtk_surface_a11y_properties (wayland_toplevel);
+  maybe_set_xdg_a11y_properties(wayland_toplevel);
   if (!maybe_set_xdg_dialog_modal (wayland_toplevel))
     maybe_set_gtk_surface_modal (wayland_toplevel);
 
@@ -1615,6 +1620,7 @@ gdk_wayland_toplevel_finalize (GObject *object)
 
   g_clear_pointer (&self->a11y.dbus_name, g_free);
   g_clear_pointer (&self->a11y.toplevel_object_path, g_free);
+  g_clear_pointer(&self->a11y_dbus_annotation, xdg_dbus_annotation_v1_destroy);
 
   G_OBJECT_CLASS (gdk_wayland_toplevel_parent_class)->finalize (object);
 }
@@ -2921,6 +2927,30 @@ maybe_set_gtk_surface_a11y_properties (GdkWaylandToplevel *wayland_toplevel)
   wayland_toplevel->a11y.was_set = TRUE;
 }
 
+static void maybe_set_xdg_a11y_properties (GdkWaylandToplevel *wayland_toplevel)
+{
+  if (wayland_toplevel->a11y.dbus_name == NULL ||
+    wayland_toplevel->a11y.toplevel_object_path == NULL)
+    return;
+
+  GdkWaylandDisplay *display_wayland = GDK_WAYLAND_DISPLAY (gdk_surface_get_display (GDK_SURFACE (wayland_toplevel)));
+
+  if (display_wayland->dbus_annotation_manager == NULL) {
+    return;
+  }
+
+  GdkWaylandSurface *wayland_surface = GDK_WAYLAND_SURFACE (wayland_toplevel);
+
+  if (!wayland_toplevel->a11y_dbus_annotation) {
+    wayland_toplevel->a11y_dbus_annotation = xdg_dbus_annotation_manager_v1_annotate_surface(display_wayland->dbus_annotation_manager, "org.a11y.atspi.Accessible", wayland_surface->display_server.wl_surface);
+  }
+
+  xdg_dbus_annotation_v1_set_bus(wayland_toplevel->a11y_dbus_annotation, XDG_DBUS_ANNOTATION_V1_BUS_ENUM_ATSPI);
+  xdg_dbus_annotation_v1_set_bus_name(wayland_toplevel->a11y_dbus_annotation, wayland_toplevel->a11y.dbus_name);
+  xdg_dbus_annotation_v1_set_object_path(wayland_toplevel->a11y_dbus_annotation, wayland_toplevel->a11y.toplevel_object_path);
+  wl_surface_commit (wayland_surface->display_server.wl_surface);
+}
+
 void
 gdk_wayland_toplevel_set_a11y_properties (GdkToplevel *toplevel,
                                           const char  *bus_name,
@@ -2939,6 +2969,7 @@ gdk_wayland_toplevel_set_a11y_properties (GdkToplevel *toplevel,
   wayland_toplevel->a11y.was_set = FALSE;
 
   maybe_set_gtk_surface_a11y_properties (wayland_toplevel);
+  maybe_set_xdg_a11y_properties(wayland_toplevel);
 }
 
 /* }}} */

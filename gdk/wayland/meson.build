@@ -175,6 +175,11 @@ proto_sources = [
     'stability': 'staging',
     'version': 1,
   },
+  {
+    'name': 'xdg-dbus-annotation',
+    'stability': 'staging',
+    'version': 1,
+  },
 ]
 
 gdk_wayland_gen_headers = []
