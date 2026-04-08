@@ -213,7 +213,7 @@ gsk_resources_xml = custom_target(output: 'gsk.resources.xml',
     find_program('gen-gsk-gresources-xml.py'),
     '@OUTPUT@',
     gsk_private_gpu_gl_shaders,
-    gsk_private_gpu_vulkan_shaders,
+    gsk_private_gpu_vulkan_sources,
   ],
 )
 
@@ -231,7 +231,6 @@ gskresources = gnome.compile_resources('gskresources',
   gsk_resources_xml,
   dependencies: [
                   gsk_private_gpu_gl_shaders,
-                  gsk_private_gpu_vulkan_shaders,
                 ],
   source_dir: [meson.current_build_dir(), meson.current_source_dir()],
   c_name: '_gsk',
@@ -246,6 +245,7 @@ gsk_deps = [
   cairo_dep,
   cairo_csi_dep,
   libgdk_dep,
+  glslang_deps,
 ]
 
 libgsk_f16c = static_library('gsk_f16c',
