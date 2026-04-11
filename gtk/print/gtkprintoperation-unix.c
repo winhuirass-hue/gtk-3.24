@@ -509,6 +509,9 @@ get_print_dialog (GtkPrintOperation *op,
   gtk_print_unix_dialog_set_support_selection (GTK_PRINT_UNIX_DIALOG (pd),
                                                priv->support_selection);
 
+  gtk_print_unix_dialog_set_support_auto_scale (GTK_PRINT_UNIX_DIALOG (pd),
+                                                priv->support_auto_scale);
+
   gtk_print_unix_dialog_set_has_selection (GTK_PRINT_UNIX_DIALOG (pd),
                                            priv->has_selection);
 

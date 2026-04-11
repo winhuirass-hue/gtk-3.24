@@ -52,6 +52,7 @@ struct _GtkPrintOperationPrivate
   guint allow_async        : 1;
   guint is_sync            : 1;
   guint support_selection  : 1;
+  guint support_auto_scale : 1;
   guint has_selection      : 1;
   guint embed_page_setup   : 1;
 

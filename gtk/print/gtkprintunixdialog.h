@@ -84,6 +84,11 @@ GDK_AVAILABLE_IN_ALL
 gboolean             gtk_print_unix_dialog_get_embed_page_setup    (GtkPrintUnixDialog *dialog);
 GDK_AVAILABLE_IN_ALL
 gboolean             gtk_print_unix_dialog_get_page_setup_set      (GtkPrintUnixDialog *dialog);
+GDK_AVAILABLE_IN_ALL
+void                 gtk_print_unix_dialog_set_support_auto_scale   (GtkPrintUnixDialog  *dialog,
+								     gboolean             support_auto_scale);
+GDK_AVAILABLE_IN_ALL
+gboolean             gtk_print_unix_dialog_get_support_auto_scale   (GtkPrintUnixDialog  *dialog);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GtkPrintUnixDialog, g_object_unref)
 

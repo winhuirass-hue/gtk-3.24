@@ -141,6 +141,7 @@ enum
   PROP_EMBED_PAGE_SETUP,
   PROP_HAS_SELECTION,
   PROP_SUPPORT_SELECTION,
+  PROP_SUPPORT_AUTO_SCALE,
   PROP_N_PAGES_TO_PRINT
 };
 
@@ -420,6 +421,9 @@ gtk_print_operation_set_property (GObject      *object,
     case PROP_SUPPORT_SELECTION:
       gtk_print_operation_set_support_selection (op, g_value_get_boolean (value));
       break;
+    case PROP_SUPPORT_AUTO_SCALE:
+      gtk_print_operation_set_support_auto_scale (op, g_value_get_boolean (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -487,6 +491,9 @@ gtk_print_operation_get_property (GObject    *object,
       break;
     case PROP_SUPPORT_SELECTION:
       g_value_set_boolean (value, priv->support_selection);
+      break;
+    case PROP_SUPPORT_AUTO_SCALE:
+      g_value_set_boolean (value, priv->support_auto_scale);
       break;
     case PROP_N_PAGES_TO_PRINT:
       g_value_set_int (value, priv->nr_of_pages_to_print);
@@ -1333,6 +1340,18 @@ gtk_print_operation_class_init (GtkPrintOperationClass *class)
   g_object_class_install_property (gobject_class,
 				   PROP_SUPPORT_SELECTION,
 				   g_param_spec_boolean ("support-selection", NULL, NULL,
+							 FALSE,
+							 G_PARAM_READWRITE|G_PARAM_EXPLICIT_NOTIFY));
+  /**
+   * GtkPrintOperation:support-auto-scale:
+   *
+   * If %TRUE, the print operation will support auto scale.
+   *
+   * This allows the print dialog to show a "fit to printable area"/"shrink to printable area" dropdown.
+   */
+  g_object_class_install_property (gobject_class,
+				   PROP_SUPPORT_AUTO_SCALE,
+				   g_param_spec_boolean ("support-auto-scale", NULL, NULL,
 							 FALSE,
 							 G_PARAM_READWRITE|G_PARAM_EXPLICIT_NOTIFY));
 
@@ -3259,6 +3278,39 @@ gtk_print_operation_get_has_selection (GtkPrintOperation *op)
   g_return_val_if_fail (GTK_IS_PRINT_OPERATION (op), FALSE);
 
   return priv->has_selection;
+}
+
+/**
+ * gtk_print_operation_set_support_selection:
+ * @op: a `GtkPrintOperation`
+ * @support_selection: %TRUE to support selection
+ *
+ * Sets whether selection is supported by `GtkPrintOperation`.
+ */
+void
+gtk_print_operation_set_support_auto_scale (GtkPrintOperation  *op,
+                                            gboolean            support_auto_scale)
+{
+  GtkPrintOperationPrivate *priv = gtk_print_operation_get_instance_private (op);
+
+  g_return_if_fail (GTK_IS_PRINT_OPERATION (op));
+
+  support_auto_scale = support_auto_scale != FALSE;
+  if (priv->support_auto_scale != support_auto_scale)
+    {
+      priv->support_auto_scale = support_auto_scale;
+      g_object_notify (G_OBJECT (op), "support-auto-scale");
+    }
+}
+
+gboolean
+gtk_print_operation_get_support_auto_scale (GtkPrintOperation *op)
+{
+  GtkPrintOperationPrivate *priv = gtk_print_operation_get_instance_private (op);
+
+  g_return_val_if_fail (GTK_IS_PRINT_OPERATION (op), FALSE);
+
+  return priv->support_auto_scale;
 }
 
 /**

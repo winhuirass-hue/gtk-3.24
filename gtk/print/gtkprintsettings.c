@@ -1247,6 +1247,43 @@ gtk_print_settings_set_scale (GtkPrintSettings *settings,
 				 scale);
 }
 
+GtkPrintAutoScale
+gtk_print_settings_get_auto_scale (GtkPrintSettings *settings)
+{
+  const gchar* val;
+
+  val = gtk_print_settings_get (settings, GTK_PRINT_SETTINGS_AUTO_SCALE);
+
+  if(!val) {
+    return GTK_AUTO_SCALE_NONE;
+  } else if(!g_strcmp0(val, "fit")) {
+    return GTK_AUTO_SCALE_FIT;
+  } else if(!g_strcmp0(val, "shrink")) {
+    return GTK_AUTO_SCALE_SHRINK;
+  } else {
+    g_critical("Invalid auto-scale value.");
+    return GTK_AUTO_SCALE_NONE;
+  }
+}
+
+void
+gtk_print_settings_set_auto_scale (GtkPrintSettings *settings,
+			           GtkPrintAutoScale scale)
+{
+  switch(scale) {
+  default:
+  case GTK_AUTO_SCALE_NONE:
+    gtk_print_settings_set (settings, GTK_PRINT_SETTINGS_AUTO_SCALE, NULL);
+    break;
+  case GTK_AUTO_SCALE_FIT:
+    gtk_print_settings_set (settings, GTK_PRINT_SETTINGS_AUTO_SCALE, "fit");
+    break;
+  case GTK_AUTO_SCALE_SHRINK:
+    gtk_print_settings_set (settings, GTK_PRINT_SETTINGS_AUTO_SCALE, "shrink");
+    break;
+  }
+}
+
 /**
  * gtk_print_settings_get_print_pages:
  * @settings: a `GtkPrintSettings`

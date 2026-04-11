@@ -269,6 +269,13 @@ void              gtk_print_settings_set_int                 (GtkPrintSettings  
 #define GTK_PRINT_SETTINGS_SCALE            "scale"
 
 /**
+ * GTK_PRINT_SETTINGS_AUTO_SCALE:
+ *
+ * The key used by the “Print to file” printer to store the scale.
+ */
+#define GTK_PRINT_SETTINGS_AUTO_SCALE            "auto-scale"
+
+/**
  * GTK_PRINT_SETTINGS_PRINT_PAGES:
  *
  * The key used by the “Print to file” printer to store which pages to print.
@@ -488,6 +495,11 @@ double                gtk_print_settings_get_scale             (GtkPrintSettings
 GDK_AVAILABLE_IN_ALL
 void                  gtk_print_settings_set_scale             (GtkPrintSettings   *settings,
 								double              scale);
+GDK_AVAILABLE_IN_ALL
+GtkPrintAutoScale     gtk_print_settings_get_auto_scale        (GtkPrintSettings   *settings);
+GDK_AVAILABLE_IN_ALL
+void                  gtk_print_settings_set_auto_scale        (GtkPrintSettings   *settings,
+								GtkPrintAutoScale   auto_scale);
 GDK_AVAILABLE_IN_ALL
 GtkPrintPages         gtk_print_settings_get_print_pages       (GtkPrintSettings   *settings);
 GDK_AVAILABLE_IN_ALL

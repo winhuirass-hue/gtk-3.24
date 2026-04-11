@@ -296,6 +296,11 @@ void                    gtk_print_operation_set_has_selection      (GtkPrintOper
 GDK_AVAILABLE_IN_ALL
 gboolean                gtk_print_operation_get_has_selection      (GtkPrintOperation  *op);
 GDK_AVAILABLE_IN_ALL
+void                    gtk_print_operation_set_support_auto_scale  (GtkPrintOperation  *op,
+                                                                     gboolean            support_auto_scale);
+GDK_AVAILABLE_IN_ALL
+gboolean                gtk_print_operation_get_support_auto_scale  (GtkPrintOperation  *op);
+GDK_AVAILABLE_IN_ALL
 void                    gtk_print_operation_set_embed_page_setup   (GtkPrintOperation  *op,
                                                                     gboolean            embed);
 GDK_AVAILABLE_IN_ALL

@@ -142,6 +142,7 @@ static void     error_dialogs                      (GtkPrintUnixDialog *print_di
 static gboolean page_range_entry_focus_changed     (GtkWidget          *entry,
                                                     GParamSpec         *pspec,
                                                     GtkPrintUnixDialog *dialog);
+static void     update_scale_sensitivity           (GtkPrintUnixDialog *dialog);
 static void     update_page_range_entry_sensitivity(GtkWidget          *button,
 						    GtkPrintUnixDialog *dialog);
 static void     update_print_at_entry_sensitivity  (GtkWidget          *button,
@@ -217,6 +218,7 @@ enum {
   PROP_SELECTED_PRINTER,
   PROP_MANUAL_CAPABILITIES,
   PROP_SUPPORT_SELECTION,
+  PROP_SUPPORT_AUTO_SCALE,
   PROP_HAS_SELECTION,
   PROP_EMBED_PAGE_SETUP
 };
@@ -244,6 +246,8 @@ struct _GtkPrintUnixDialog
   gboolean support_selection;
   gboolean has_selection;
 
+  gboolean support_auto_scale;
+
   GtkWidget *all_pages_radio;
   GtkWidget *current_page_radio;
   GtkWidget *selection_radio;
@@ -262,6 +266,7 @@ struct _GtkPrintUnixDialog
   GtkWidget *page_layout_preview;
   GtkWidget *scale_spin;
   GtkWidget *page_set_combo;
+  GtkWidget *auto_scale;
   GtkWidget *print_now_radio;
   GtkWidget *print_at_radio;
   GtkWidget *print_at_entry;
@@ -473,6 +478,17 @@ gtk_print_unix_dialog_class_init (GtkPrintUnixDialogClass *class)
                                                          G_PARAM_READWRITE));
 
   /**
+   * GtkPrintUnixDialog:support-auto-scale:
+   *
+   * Whether the dialog supports automatic scale, i.e. fitting/shrinking the content to the page.
+   */
+  g_object_class_install_property (object_class,
+                                   PROP_SUPPORT_AUTO_SCALE,
+                                   g_param_spec_boolean ("support-auto-scale", NULL, NULL,
+                                                         FALSE,
+                                                         G_PARAM_READWRITE));
+
+  /**
    * GtkPrintUnixDialog:has-selection:
    *
    * Whether the application has a selection.
@@ -551,6 +567,7 @@ gtk_print_unix_dialog_class_init (GtkPrintUnixDialogClass *class)
   gtk_widget_class_bind_template_child (widget_class, GtkPrintUnixDialog, cover_before);
   gtk_widget_class_bind_template_child (widget_class, GtkPrintUnixDialog, cover_after);
   gtk_widget_class_bind_template_child (widget_class, GtkPrintUnixDialog, number_up_layout);
+  gtk_widget_class_bind_template_child (widget_class, GtkPrintUnixDialog, auto_scale);
 
   /* Callbacks handled in the UI */
   gtk_widget_class_bind_template_callback (widget_class, redraw_page_layout_preview);
@@ -559,6 +576,7 @@ gtk_print_unix_dialog_class_init (GtkPrintUnixDialogClass *class)
   gtk_widget_class_bind_template_callback (widget_class, update_page_range_entry_sensitivity);
   gtk_widget_class_bind_template_callback (widget_class, update_print_at_entry_sensitivity);
   gtk_widget_class_bind_template_callback (widget_class, update_print_at_option);
+  gtk_widget_class_bind_template_callback (widget_class, update_scale_sensitivity);
   gtk_widget_class_bind_template_callback (widget_class, update_dialog_from_capabilities);
   gtk_widget_class_bind_template_callback (widget_class, update_collate_icon);
   gtk_widget_class_bind_template_callback (widget_class, redraw_page_layout_preview);
@@ -1128,6 +1146,9 @@ gtk_print_unix_dialog_set_property (GObject      *object,
     case PROP_HAS_SELECTION:
       gtk_print_unix_dialog_set_has_selection (dialog, g_value_get_boolean (value));
       break;
+    case PROP_SUPPORT_AUTO_SCALE:
+      gtk_print_unix_dialog_set_support_auto_scale (dialog, g_value_get_boolean (value));
+      break;
     case PROP_EMBED_PAGE_SETUP:
       gtk_print_unix_dialog_set_embed_page_setup (dialog, g_value_get_boolean (value));
       break;
@@ -1167,6 +1188,9 @@ gtk_print_unix_dialog_get_property (GObject    *object,
       break;
     case PROP_HAS_SELECTION:
       g_value_set_boolean (value, dialog->has_selection);
+      break;
+    case PROP_SUPPORT_AUTO_SCALE:
+      g_value_set_boolean (value, dialog->support_auto_scale);
       break;
     case PROP_EMBED_PAGE_SETUP:
       g_value_set_boolean (value, dialog->embed_page_setup);
@@ -2152,6 +2176,28 @@ dialog_get_scale (GtkPrintUnixDialog *dialog)
     return gtk_spin_button_get_value (GTK_SPIN_BUTTON (dialog->scale_spin));
   else
     return 100.0;
+}
+
+static void
+update_scale_sensitivity (GtkPrintUnixDialog *dialog)
+{
+  gboolean active;
+
+  active = gtk_drop_down_get_selected (GTK_DROP_DOWN (dialog->auto_scale)) == GTK_AUTO_SCALE_NONE;
+
+  gtk_widget_set_sensitive (dialog->scale_spin, active);
+
+  if (active)
+    gtk_widget_grab_focus (dialog->scale_spin);
+}
+
+static GtkPrintAutoScale
+dialog_get_auto_scale (GtkPrintUnixDialog *dialog)
+{
+  if (gtk_widget_is_sensitive (dialog->auto_scale))
+    return (GtkPrintAutoScale)gtk_drop_down_get_selected (GTK_DROP_DOWN (dialog->auto_scale));
+  else
+    return GTK_AUTO_SCALE_NONE;
 }
 
 static void
@@ -3249,6 +3295,9 @@ gtk_print_unix_dialog_get_settings (GtkPrintUnixDialog *dialog)
   gtk_print_settings_set_scale (settings,
                                 dialog_get_scale (dialog));
 
+  gtk_print_settings_set_auto_scale (settings,
+                                dialog_get_auto_scale (dialog));
+
   gtk_print_settings_set_page_set (settings,
                                    dialog_get_page_set (dialog));
 
@@ -3381,6 +3430,38 @@ gtk_print_unix_dialog_get_support_selection (GtkPrintUnixDialog *dialog)
   g_return_val_if_fail (GTK_IS_PRINT_UNIX_DIALOG (dialog), FALSE);
 
   return dialog->support_selection;
+}
+
+/**
+ * gtk_print_unix_dialog_set_support_selection:
+ * @dialog: a `GtkPrintUnixDialog`
+ * @support_auto_scale: %TRUE to allow automatic scale settings
+ *
+ * Sets whether the print dialog allows user to print at a scale that automatically
+ * fit/shrink the page onto the paper.
+ */
+void
+gtk_print_unix_dialog_set_support_auto_scale (GtkPrintUnixDialog *dialog,
+                                              gboolean support_auto_scale)
+{
+  g_return_if_fail (GTK_IS_PRINT_UNIX_DIALOG (dialog));
+
+  support_auto_scale = support_auto_scale != FALSE;
+  if (dialog->support_auto_scale != support_auto_scale)
+    {
+      dialog->support_auto_scale = support_auto_scale;
+
+      g_object_notify (G_OBJECT (dialog), "support-auto-scale");
+    }
+    gtk_widget_set_sensitive (dialog->auto_scale, dialog->support_auto_scale);
+}
+
+gboolean
+gtk_print_unix_dialog_get_support_auto_scale (GtkPrintUnixDialog *dialog)
+{
+  g_return_val_if_fail (GTK_IS_PRINT_UNIX_DIALOG (dialog), FALSE);
+
+  return dialog->support_auto_scale;
 }
 
 /**

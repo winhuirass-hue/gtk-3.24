@@ -653,6 +653,13 @@ typedef enum
   GTK_NUMBER_UP_LAYOUT_BOTTOM_TO_TOP_RIGHT_TO_LEFT  /*< nick=btrl >*/
 } GtkNumberUpLayout;
 
+typedef enum
+{
+  GTK_AUTO_SCALE_NONE,
+  GTK_AUTO_SCALE_FIT,
+  GTK_AUTO_SCALE_SHRINK
+} GtkPrintAutoScale;
+
 /**
  * GtkOrdering:
  * @GTK_ORDERING_SMALLER: the first value is smaller than the second
