@@ -1061,6 +1061,7 @@ gtk_level_bar_init (GtkLevelBar *self)
   update_block_nodes (self);
   update_level_style_classes (self);
 
+  gtk_widget_set_overflow (GTK_WIDGET (self), GTK_OVERFLOW_HIDDEN);
   gtk_accessible_update_property (GTK_ACCESSIBLE (self),
                                   GTK_ACCESSIBLE_PROPERTY_VALUE_MAX, 1.0,
                                   GTK_ACCESSIBLE_PROPERTY_VALUE_MIN, 0.0,
