@@ -120,9 +120,6 @@ update_focus (GtkEventController    *controller,
       leave = !contains_focus;
     }
 
-  if (leave)
-    g_signal_emit (controller, signals[LEAVE], 0);
-
   g_object_freeze_notify (G_OBJECT (focus));
   if (focus->is_focus != is_focus)
     {
@@ -137,6 +134,8 @@ update_focus (GtkEventController    *controller,
     }
   g_object_thaw_notify (G_OBJECT (focus));
 
+  if (leave)
+    g_signal_emit (controller, signals[LEAVE], 0);
   if (enter)
     g_signal_emit (controller, signals[ENTER], 0);
 }
