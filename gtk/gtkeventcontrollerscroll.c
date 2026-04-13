@@ -395,6 +395,9 @@ gtk_event_controller_scroll_handle_event (GtkEventController *controller,
   direction = gdk_scroll_event_get_direction (event);
   if (direction == GDK_SCROLL_SMOOTH)
     {
+      /* Bail out if scolling in a different orientation */
+      if (dx == 0 && dy == 0)
+        goto check_stop;
       gtk_event_controller_scroll_begin (controller);
 
       if (scroll->flags & GTK_EVENT_CONTROLLER_SCROLL_DISCRETE)
@@ -499,6 +502,7 @@ gtk_event_controller_scroll_handle_event (GtkEventController *controller,
       scroll->flags & GTK_EVENT_CONTROLLER_SCROLL_KINETIC)
     scroll_history_push (scroll, dx, dy, gdk_event_get_time (event));
 
+check_stop:
   if (scroll->active && gdk_scroll_event_is_stop (event))
     {
       gtk_event_controller_scroll_end (controller);
