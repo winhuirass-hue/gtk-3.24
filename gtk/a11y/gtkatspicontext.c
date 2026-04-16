@@ -137,16 +137,13 @@ unset_atspi_state (guint64        *states,
   *states &= ~(G_GUINT64_CONSTANT (1) << state);
 }
 
-static void
-collect_states (GtkAtSpiContext    *self,
-                GVariantBuilder *builder)
+uint64_t
+gtk_at_spi_context_get_states_as_u64 (GtkAtSpiContext *self)
 {
   GtkATContext *ctx = GTK_AT_CONTEXT (self);
-  GtkAccessibleValue *value;
-  GtkAccessible *accessible;
+  GtkAccessible *accessible = gtk_at_context_get_accessible (ctx);
   guint64 states = 0;
-
-  accessible = gtk_at_context_get_accessible (ctx);
+  GtkAccessibleValue *value;
 
   set_atspi_state (&states, ATSPI_STATE_VISIBLE);
   set_atspi_state (&states, ATSPI_STATE_SHOWING);
@@ -325,9 +322,18 @@ collect_states (GtkAtSpiContext    *self,
         set_atspi_state (&states, ATSPI_STATE_SUPPORTS_AUTOCOMPLETION);
     }
 
+  return states;
+}
+
+static void
+collect_states (GtkAtSpiContext    *self,
+                GVariantBuilder *builder)
+{
+  uint64_t states = gtk_at_spi_context_get_states_as_u64 (self);
   g_variant_builder_add (builder, "u", (guint32) (states & 0xffffffff));
   g_variant_builder_add (builder, "u", (guint32) (states >> 32));
 }
+
 /* }}} */
 /* {{{ Relation handling */
 static void
