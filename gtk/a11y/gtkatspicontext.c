@@ -18,6 +18,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "a11y/gtkatspicollectionprivate.h"
 #include "config.h"
 
 #include "gtkatspicontextprivate.h"
@@ -39,6 +40,7 @@
 #include "gtkatspihyperlinkprivate.h"
 #include "a11y/atspi/atspi-accessible.h"
 #include "a11y/atspi/atspi-action.h"
+#include "a11y/atspi/atspi-collection.h"
 #include "a11y/atspi/atspi-editabletext.h"
 #include "a11y/atspi/atspi-text.h"
 #include "a11y/atspi/atspi-value.h"
@@ -75,7 +77,7 @@
  * Each context implements a number of Atspi interfaces on a D-Bus
  * object. The context objects are connected into a tree by the
  * Parent property and GetChildAtIndex method of the Accessible
- * interface.
+ * interface, and the Collection interface.
  *
  * The tree is an almost perfect mirror image of the widget tree,
  * with a few notable exceptions:
@@ -1503,6 +1505,21 @@ gtk_at_spi_context_register_object (GtkAtSpiContext *self)
         g_dbus_connection_register_object (self->connection,
                                            self->context_path,
                                            (GDBusInterfaceInfo *) &atspi_hyperlink_interface,
+                                           vtable,
+                                           self,
+                                           NULL,
+                                           NULL);
+      self->n_registered_objects++;
+    }
+
+  vtable = gtk_atspi_get_collection_vtable (accessible);
+  if (vtable)
+    {
+      g_variant_builder_add (&interfaces, "s", atspi_collection_interface.name);
+      self->registration_ids[self->n_registered_objects] =
+        g_dbus_connection_register_object (self->connection,
+                                           self->context_path,
+                                           (GDBusInterfaceInfo *) &atspi_collection_interface,
                                            vtable,
                                            self,
                                            NULL,
