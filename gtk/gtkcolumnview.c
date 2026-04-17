@@ -795,8 +795,6 @@ gtk_column_view_class_init (GtkColumnViewClass *klass)
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   gpointer iface;
 
-  widget_class->focus = gtk_widget_focus_child;
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
   widget_class->measure = gtk_column_view_measure;
   widget_class->size_allocate = gtk_column_view_allocate;
   widget_class->root = gtk_column_view_root;
@@ -974,6 +972,7 @@ gtk_column_view_class_init (GtkColumnViewClass *klass)
 
   gtk_widget_class_set_css_name (widget_class, I_("columnview"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_TREE_GRID);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static void update_column_resize  (GtkColumnView *self,

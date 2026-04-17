@@ -718,6 +718,12 @@ void              gtk_widget_class_set_css_name (GtkWidgetClass *widget_class,
 GDK_AVAILABLE_IN_ALL
 const char *      gtk_widget_class_get_css_name (GtkWidgetClass *widget_class);
 
+GDK_AVAILABLE_IN_4_24
+void              gtk_widget_class_set_focus_type (GtkWidgetClass *widget_class,
+                                                   GtkFocusType    focus_type);
+GDK_AVAILABLE_IN_4_24
+GtkFocusType      gtk_widget_class_get_focus_type (GtkWidgetClass *widget_class);
+
 GDK_AVAILABLE_IN_ALL
 guint gtk_widget_add_tick_callback (GtkWidget       *widget,
                                     GtkTickCallback  callback,

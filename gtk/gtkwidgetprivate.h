@@ -217,6 +217,7 @@ struct _GtkWidgetClassPrivate
   GtkAccessibleRole accessible_role;
   guint activate_signal;
   GQuark css_name;
+  GtkFocusType focus_type;
 };
 
 void          gtk_widget_root               (GtkWidget *widget);

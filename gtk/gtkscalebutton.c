@@ -214,8 +214,6 @@ gtk_scale_button_class_init (GtkScaleButtonClass *klass)
 
   widget_class->measure = gtk_scale_button_measure;
   widget_class->size_allocate = gtk_scale_button_size_allocate;
-  widget_class->focus = gtk_widget_focus_child;
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
 
 
   g_object_class_override_property (gobject_class, PROP_ORIENTATION, "orientation");
@@ -395,6 +393,7 @@ gtk_scale_button_class_init (GtkScaleButtonClass *klass)
 
   gtk_widget_class_set_css_name (widget_class, I_("scalebutton"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_GROUP);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static gboolean

@@ -254,7 +254,6 @@ gtk_box_class_init (GtkBoxClass *class)
   object_class->get_property = gtk_box_get_property;
   object_class->dispose = gtk_box_dispose;
 
-  widget_class->focus = gtk_widget_focus_child;
   widget_class->compute_expand = gtk_box_compute_expand;
   widget_class->get_request_mode = gtk_box_get_request_mode;
 
@@ -312,6 +311,7 @@ gtk_box_class_init (GtkBoxClass *class)
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BOX_LAYOUT);
   gtk_widget_class_set_css_name (widget_class, I_("box"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_GENERIC);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static void

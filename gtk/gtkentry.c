@@ -423,15 +423,6 @@ gtk_entry_buildable_interface_init (GtkBuildableIface *iface)
 }
 
 static gboolean
-gtk_entry_grab_focus (GtkWidget *widget)
-{
-  GtkEntry *entry = GTK_ENTRY (widget);
-  GtkEntryPrivate *priv = gtk_entry_get_instance_private (entry);
-
-  return gtk_widget_grab_focus (priv->text);
-}
-
-static gboolean
 gtk_entry_mnemonic_activate (GtkWidget *widget,
                              gboolean   group_cycling)
 {
@@ -473,8 +464,6 @@ gtk_entry_class_init (GtkEntryClass *class)
   widget_class->snapshot = gtk_entry_snapshot;
   widget_class->query_tooltip = gtk_entry_query_tooltip;
   widget_class->direction_changed = gtk_entry_direction_changed;
-  widget_class->grab_focus = gtk_entry_grab_focus;
-  widget_class->focus = gtk_widget_focus_child;
   widget_class->mnemonic_activate = gtk_entry_mnemonic_activate;
 
   quark_entry_completion = g_quark_from_static_string ("gtk-entry-completion-key");
@@ -1047,6 +1036,7 @@ gtk_entry_class_init (GtkEntryClass *class)
 
   gtk_widget_class_set_css_name (widget_class, I_("entry"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_TEXT_BOX);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 
   gtk_widget_class_install_action (widget_class, "misc.menu_entry_icon_primary", NULL,
                                    gtk_entry_activate_misc_icon);

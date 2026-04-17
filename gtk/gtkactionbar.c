@@ -172,8 +172,6 @@ gtk_action_bar_class_init (GtkActionBarClass *klass)
   object_class->get_property = gtk_action_bar_get_property;
   object_class->dispose = gtk_action_bar_dispose;
 
-  widget_class->focus = gtk_widget_focus_child;
-
   /**
    * GtkActionBar:revealed:
    *
@@ -188,6 +186,7 @@ gtk_action_bar_class_init (GtkActionBarClass *klass)
 
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BIN_LAYOUT);
   gtk_widget_class_set_css_name (widget_class, I_("actionbar"));
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static void

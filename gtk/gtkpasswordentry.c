@@ -467,8 +467,6 @@ gtk_password_entry_class_init (GtkPasswordEntryClass *klass)
   widget_class->measure = gtk_password_entry_measure;
   widget_class->size_allocate = gtk_password_entry_size_allocate;
   widget_class->mnemonic_activate = gtk_password_entry_mnemonic_activate;
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
-  widget_class->focus = gtk_widget_focus_child;
 
   /**
    * GtkPasswordEntry:placeholder-text:
@@ -534,6 +532,7 @@ gtk_password_entry_class_init (GtkPasswordEntryClass *klass)
 
   gtk_widget_class_set_css_name (widget_class, I_("entry"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_TEXT_BOX);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static GtkEditable *
