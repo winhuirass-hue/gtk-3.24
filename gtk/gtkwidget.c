@@ -615,8 +615,9 @@ static void     gtk_widget_real_system_setting_changed          (GtkWidget      
                                                                  GtkSystemSetting    setting);
 static void     gtk_widget_real_set_focus_child                 (GtkWidget          *widget,
                                                                  GtkWidget          *child);
+static gboolean gtk_widget_real_grab_focus                      (GtkWidget          *widget);
 static void     gtk_widget_real_move_focus                      (GtkWidget          *widget,
-                                                                GtkDirectionType     direction);
+                                                                 GtkDirectionType    direction);
 static gboolean gtk_widget_real_keynav_failed                   (GtkWidget          *widget,
                                                                  GtkDirectionType    direction);
 #ifdef G_ENABLE_CONSISTENCY_CHECKS
@@ -1244,7 +1245,7 @@ gtk_widget_class_init (GtkWidgetClass *klass)
   klass->direction_changed = gtk_widget_real_direction_changed;
   klass->snapshot = gtk_widget_real_snapshot;
   klass->mnemonic_activate = gtk_widget_real_mnemonic_activate;
-  klass->grab_focus = gtk_widget_grab_focus_self;
+  klass->grab_focus = gtk_widget_real_grab_focus;
   klass->focus = gtk_widget_real_focus;
   klass->set_focus_child = gtk_widget_real_set_focus_child;
   klass->move_focus = gtk_widget_real_move_focus;
@@ -5207,6 +5208,29 @@ gboolean
 gtk_widget_grab_focus_child (GtkWidget *widget)
 {
   GtkWidget *child;
+
+  for (child = _gtk_widget_get_first_child (widget);
+       child != NULL;
+       child = _gtk_widget_get_next_sibling (child))
+    {
+      if (gtk_widget_grab_focus (child))
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+static gboolean
+gtk_widget_real_grab_focus (GtkWidget *widget)
+{
+  GtkWidgetPrivate *priv = gtk_widget_get_instance_private (widget);
+  GtkWidget *child;
+
+  if (priv->focusable)
+    {
+      gtk_root_set_focus (priv->root, widget);
+      return TRUE;
+    }
 
   for (child = _gtk_widget_get_first_child (widget);
        child != NULL;
