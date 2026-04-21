@@ -1828,6 +1828,7 @@ gtk_window_activate_close (GtkWidget  *widget,
   gtk_window_close (GTK_WINDOW (widget));
 }
 
+#ifdef GDK_WINDOWING_X11
 static gboolean
 gtk_window_accept_rootwindow_drop (GtkDropTargetAsync *self,
                                    GdkDrop            *drop,
@@ -1839,6 +1840,7 @@ gtk_window_accept_rootwindow_drop (GtkDropTargetAsync *self,
 
   return TRUE;
 }
+#endif
 
 static void
 gtk_window_init (GtkWindow *window)
@@ -1847,7 +1849,6 @@ gtk_window_init (GtkWindow *window)
   GtkWidget *widget;
   GdkSeat *seat;
   GtkEventController *controller;
-  GtkDropTargetAsync *target;
   GtkShortcut *shortcut;
 
   widget = GTK_WIDGET (window);
@@ -1884,12 +1885,19 @@ gtk_window_init (GtkWindow *window)
 
   gtk_widget_add_css_class (widget, "background");
 
-  target = gtk_drop_target_async_new (gdk_content_formats_new ((const char*[1]) { "application/x-rootwindow-drop" }, 1),
-                                      GDK_ACTION_MOVE);
-  gtk_event_controller_set_static_name (GTK_EVENT_CONTROLLER (target),
-                                        "gtk-window-rootwindow-drop");
-  g_signal_connect (target, "drop", G_CALLBACK (gtk_window_accept_rootwindow_drop), NULL);
-  gtk_widget_add_controller (GTK_WIDGET (window), GTK_EVENT_CONTROLLER (target));
+#ifdef GDK_WINDOWING_X11
+  if (GDK_IS_X11_DISPLAY (priv->display))
+    {
+      GtkDropTargetAsync *target;
+
+      target = gtk_drop_target_async_new (gdk_content_formats_new ((const char*[1]) { "application/x-rootwindow-drop" }, 1),
+                                          GDK_ACTION_MOVE);
+      gtk_event_controller_set_static_name (GTK_EVENT_CONTROLLER (target),
+                                            "gtk-window-rootwindow-drop");
+      g_signal_connect (target, "drop", G_CALLBACK (gtk_window_accept_rootwindow_drop), NULL);
+      gtk_widget_add_controller (GTK_WIDGET (window), GTK_EVENT_CONTROLLER (target));
+    }
+#endif
 
   seat = gdk_display_get_default_seat (gtk_widget_get_display (widget));
   if (seat)
