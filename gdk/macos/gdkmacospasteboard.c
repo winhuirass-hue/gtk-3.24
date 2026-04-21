@@ -75,6 +75,12 @@ _gdk_macos_pasteboard_to_ns_type (const char       *mime_type,
       GDK_DEBUG (DND, "From mime-type %s to UTI %s", mime_type, [NSPasteboardTypeColor UTF8String]);
       return [NSPasteboardTypeColor retain];
     }
+  else if (g_strcmp0 (mime_type, "application/x-rootwindow-drop") == 0)
+    {
+      /* GTK-internal marker for tab-detach on X11; not a UTI. macOS 26
+         raises NSInvalidArgumentException if we hand it to NSPasteboard. */
+      return nil;
+    }
   else if ((uti_str = g_content_type_from_mime_type (mime_type)))
     {
       NSString *uti = [[NSString alloc] initWithUTF8String:uti_str];
