@@ -150,6 +150,10 @@ gtk_feedback_provider_feedback (GtkFeedbackProvider *self, GdkDevice *dev, GtkFe
   return klass->feedback (self, dev, feedback);
 }
 
+#ifdef GDK_WINDOWING_ANDROID
+extern GType gtk_feedback_provider_android_get_type (void);
+#endif
+
 void
 gtk_feedback_provider_extension_init (void)
 {
@@ -161,6 +165,10 @@ gtk_feedback_provider_extension_init (void)
 
   ep = g_io_extension_point_register (GTK_FEEDBACK_PROVIDER_EXTENSION_POINT_NAME);
   g_io_extension_point_set_required_type (ep, GTK_TYPE_FEEDBACK_PROVIDER);
+
+#ifdef GDK_WINDOWING_ANDROID
+  g_type_ensure (gtk_feedback_provider_android_get_type ());
+#endif
 
   scope = g_io_module_scope_new (G_IO_MODULE_SCOPE_BLOCK_DUPLICATES);
 
