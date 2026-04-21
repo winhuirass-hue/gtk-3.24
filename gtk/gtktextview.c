@@ -5595,6 +5595,9 @@ gtk_text_view_handle_dragged (GtkTextHandle *handle,
 
   if (gtk_text_iter_compare (&iter, old_iter) != 0)
     {
+      GtkFeedbackProvider *feedback = gtk_widget_get_feedback_provider ((GtkWidget *)text_view);
+      gtk_feedback_provider_feedback (feedback, NULL /* todo */, GTK_FEEDBACK_TEXTHANDLE_MOVED);
+
       *old_iter = iter;
 
       if (handle == priv->text_handles[TEXT_HANDLE_CURSOR] &&
