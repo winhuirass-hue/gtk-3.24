@@ -52,6 +52,7 @@
 
 #include "gtkdebug.h"
 #include "gtkdropprivate.h"
+#include "feedback/gtkfeedbackprovider-private.h"
 #include "gtkmain.h"
 #include "gtkmediafileprivate.h"
 #include "gtkmodulesprivate.h"
@@ -637,6 +638,7 @@ do_post_parse_initialization (void)
   gtk_print_backends_init ();
 #endif
   gtk_im_modules_init ();
+  gtk_feedback_provider_extension_init ();
   gtk_media_file_extension_init ();
   gdk_profiler_end_mark (before, "Init modules", NULL);
 

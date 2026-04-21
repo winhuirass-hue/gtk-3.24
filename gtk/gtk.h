@@ -128,6 +128,8 @@
 #include <gtk/gtkeventcontrollerscroll.h>
 #include <gtk/gtkexpander.h>
 #include <gtk/gtkexpression.h>
+#include <gtk/feedback/gtkfeedback.h>
+#include <gtk/feedback/gtkfeedbackprovider.h>
 #include <gtk/gtkfixed.h>
 #include <gtk/gtkfixedlayout.h>
 #include <gtk/deprecated/gtkfilechooser.h>
