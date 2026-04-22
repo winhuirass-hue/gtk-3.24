@@ -282,8 +282,6 @@ typedef struct
   GdkSurface  *surface;
   GskRenderer *renderer;
 
-  GList *foci;
-
   GtkConstraintSolver *constraint_solver;
 
   int surface_width;
@@ -1734,32 +1732,6 @@ click_gesture_pressed_cb (GtkGestureClick *gesture,
 }
 
 static void
-device_removed_cb (GdkSeat   *seat,
-                   GdkDevice *device,
-                   gpointer   user_data)
-{
-  GtkWindow *window = user_data;
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l = priv->foci;
-
-  while (l)
-    {
-      GList *next;
-      GtkPointerFocus *focus = l->data;
-
-      next = l->next;
-
-      if (focus->device == device)
-        {
-          priv->foci = g_list_delete_link (priv->foci, l);
-          gtk_pointer_focus_unref (focus);
-        }
-
-      l = next;
-    }
-}
-
-static void
 gtk_window_capture_motion (GtkWidget *widget,
                            double     x,
                            double     y)
@@ -1784,7 +1756,7 @@ gtk_window_capture_motion (GtkWidget *widget,
   if (edge != -1)
     priv->resize_cursor = gdk_cursor_new_from_name (cursor_names[edge], NULL);
 
-  gtk_window_maybe_update_cursor (window, widget, NULL);
+  gtk_root_maybe_update_cursor (GTK_ROOT (window), widget, NULL);
 }
 
 static void
@@ -1893,8 +1865,7 @@ gtk_window_init (GtkWindow *window)
 
   seat = gdk_display_get_default_seat (gtk_widget_get_display (widget));
   if (seat)
-    g_signal_connect (seat, "device-removed",
-                      G_CALLBACK (device_removed_cb), window);
+    g_signal_connect_swapped (seat, "device-removed", G_CALLBACK (gtk_root_device_removed), window);
 
   controller = gtk_event_controller_motion_new ();
   gtk_event_controller_set_static_name (controller, "gtk-window-resize-cursor");
@@ -2337,16 +2308,18 @@ gtk_window_native_layout (GtkNative *native,
       if (seat)
         {
           GdkDevice *device;
-          GtkWidget *focus;
+          GtkPointerFocus *focus;
+          GtkWidget *target = NULL;
 
           device = gdk_seat_get_pointer (seat);
-          focus = gtk_window_lookup_pointer_focus_widget (GTK_WINDOW (widget),
-                                                          device, NULL);
+          focus = gtk_root_lookup_pointer_focus (GTK_ROOT (widget), device, NULL);
           if (focus)
+             target = gtk_pointer_focus_get_target (focus);
+          if (target)
             {
               GdkSurface *surface;
 
-              surface = gtk_native_get_surface (gtk_widget_get_native (focus));
+              surface = gtk_native_get_surface (gtk_widget_get_native (target));
 
               if (surface)
                 gdk_surface_request_motion (surface);
@@ -2750,9 +2723,6 @@ gtk_window_dispose (GObject *object)
     gtk_window_group_remove_window (priv->group, window);
 
   unset_fullscreen_monitor (window);
-
-  g_list_free_full (priv->foci, (GDestroyNotify) gtk_pointer_focus_unref);
-  priv->foci = NULL;
 
   g_clear_object (&priv->move_focus_widget);
   gtk_window_set_focus (window, NULL);
@@ -3964,7 +3934,7 @@ gtk_window_finalize (GObject *object)
 
   seat = gdk_display_get_default_seat (priv->display);
   if (seat)
-    g_signal_handlers_disconnect_by_func (seat, device_removed_cb, window);
+    g_signal_handlers_disconnect_by_func (seat, gtk_root_device_removed, window);
 
 #ifdef GDK_WINDOWING_X11
   g_signal_handlers_disconnect_by_func (gtk_settings_get_for_display (priv->display),
@@ -6734,240 +6704,11 @@ gtk_window_unexport_handle (GtkWindow  *window,
     gdk_toplevel_unexport_handle (GDK_TOPLEVEL (priv->surface), unprefix_handle (handle));
 }
 
-static GtkPointerFocus *
-gtk_window_lookup_pointer_focus (GtkWindow        *window,
-                                 GdkDevice        *device,
-                                 GdkEventSequence *sequence)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l;
-
-  for (l = priv->foci; l; l = l->next)
-    {
-      GtkPointerFocus *focus = l->data;
-
-      if (focus->device == device && focus->sequence == sequence)
-        return focus;
-    }
-
-  return NULL;
-}
-
-GtkWidget *
-gtk_window_lookup_pointer_focus_widget (GtkWindow        *window,
-                                        GdkDevice        *device,
-                                        GdkEventSequence *sequence)
-{
-  GtkPointerFocus *focus;
-
-  focus = gtk_window_lookup_pointer_focus (window, device, sequence);
-  return focus ? gtk_pointer_focus_get_target (focus) : NULL;
-}
-
-GtkWidget *
-gtk_window_lookup_effective_pointer_focus_widget (GtkWindow        *window,
-                                                  GdkDevice        *device,
-                                                  GdkEventSequence *sequence)
-{
-  GtkPointerFocus *focus;
-
-  focus = gtk_window_lookup_pointer_focus (window, device, sequence);
-  return focus ? gtk_pointer_focus_get_effective_target (focus) : NULL;
-}
-
-GtkWidget *
-gtk_window_lookup_pointer_focus_implicit_grab (GtkWindow        *window,
-                                               GdkDevice        *device,
-                                               GdkEventSequence *sequence)
-{
-  GtkPointerFocus *focus;
-
-  focus = gtk_window_lookup_pointer_focus (window, device, sequence);
-  return focus ? gtk_pointer_focus_get_implicit_grab (focus) : NULL;
-}
-
-static void
-set_widget_active_state (GtkWidget *widget,
-                         GtkWidget *topmost,
-                         gboolean   active)
-{
-  GtkWidget *w = widget;
-
-  while (w)
-    {
-      gtk_widget_set_active_state (w, active);
-      if (w == topmost)
-        break;
-      w = _gtk_widget_get_parent (w);
-    }
-}
-
 void
-gtk_window_update_pointer_focus (GtkWindow        *window,
-                                 GdkDevice        *device,
-                                 GdkEventSequence *sequence,
-                                 GtkWidget        *target,
-                                 double            x,
-                                 double            y)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GtkPointerFocus *focus;
-
-  focus = gtk_window_lookup_pointer_focus (window, device, sequence);
-  if (focus)
-    {
-      gtk_pointer_focus_ref (focus);
-
-      if (target)
-        {
-          gtk_pointer_focus_set_target (focus, target);
-          gtk_pointer_focus_set_coordinates (focus, x, y);
-        }
-      else
-        {
-          GList *pos;
-
-          pos = g_list_find (priv->foci, focus);
-          if (pos)
-            {
-              if (focus->grab_widget)
-                {
-                  set_widget_active_state (focus->grab_widget, NULL, FALSE);
-                  gtk_pointer_focus_set_implicit_grab (focus, NULL);
-                }
-
-              priv->foci = g_list_remove (priv->foci, focus);
-              gtk_pointer_focus_unref (focus);
-            }
-        }
-
-      gtk_pointer_focus_unref (focus);
-    }
-  else if (target)
-    {
-      focus = gtk_pointer_focus_new (window, target, device, sequence, x, y);
-      priv->foci = g_list_prepend (priv->foci, focus);
-    }
-}
-
-void
-gtk_window_update_pointer_focus_on_state_change (GtkWindow *window,
-                                                 GtkWidget *widget)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l = priv->foci;
-
-  while (l)
-    {
-      GList *next;
-
-      GtkPointerFocus *focus = l->data;
-
-      next = l->next;
-
-      gtk_pointer_focus_ref (focus);
-
-      if (focus->grab_widget &&
-          (focus->grab_widget == widget ||
-           gtk_widget_is_ancestor (focus->grab_widget, widget)))
-        {
-          set_widget_active_state (focus->grab_widget, widget, FALSE);
-          gtk_pointer_focus_set_implicit_grab (focus,
-                                               gtk_widget_get_parent (widget));
-        }
-
-      if (GTK_WIDGET (focus->toplevel) == widget)
-        {
-          /* Unmapping the toplevel, remove pointer focus */
-          priv->foci = g_list_remove_link (priv->foci, l);
-          gtk_pointer_focus_unref (focus);
-          g_list_free (l);
-        }
-      else if (focus->target == widget ||
-               gtk_widget_is_ancestor (focus->target, widget))
-        {
-          GtkWidget *old_target;
-
-          old_target = g_object_ref (focus->target);
-          gtk_pointer_focus_repick_target (focus);
-          if (gtk_widget_get_native (focus->target) == gtk_widget_get_native (old_target))
-            {
-              gtk_synthesize_crossing_events (GTK_ROOT (window),
-                                              GTK_CROSSING_POINTER,
-                                              old_target, focus->target,
-                                              focus->x, focus->y,
-                                              GDK_CROSSING_NORMAL,
-                                              NULL);
-            }
-          g_object_unref (old_target);
-        }
-
-      gtk_pointer_focus_unref (focus);
-
-      l = next;
-    }
-}
-
-void
-gtk_window_maybe_revoke_implicit_grab (GtkWindow *window,
-                                       GdkDevice *device,
-                                       GtkWidget *grab_widget)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l = priv->foci;
-
-  while (l)
-    {
-      GtkPointerFocus *focus = l->data;
-
-      l = l->next;
-
-      if (focus->toplevel != window)
-        continue;
-
-      if ((!device || focus->device == device) &&
-          focus->target != grab_widget &&
-          !gtk_widget_is_ancestor (focus->target, grab_widget))
-        gtk_window_set_pointer_focus_grab (window,
-                                           focus->device,
-                                           focus->sequence,
-                                           NULL);
-    }
-}
-
-void
-gtk_window_set_pointer_focus_grab (GtkWindow        *window,
-                                   GdkDevice        *device,
-                                   GdkEventSequence *sequence,
-                                   GtkWidget        *grab_widget)
-{
-  GtkPointerFocus *focus;
-  GtkWidget *current;
-
-  focus = gtk_window_lookup_pointer_focus (window, device, sequence);
-  if (!focus && !grab_widget)
-    return;
-  g_assert (focus != NULL);
-
-  current = gtk_pointer_focus_get_implicit_grab (focus);
-
-  if (current == grab_widget)
-    return;
-
-  if (current)
-    set_widget_active_state (current, NULL, FALSE);
-
-  gtk_pointer_focus_set_implicit_grab (focus, grab_widget);
-
-  if (grab_widget)
-    set_widget_active_state (grab_widget, NULL, TRUE);
-}
-
-static void
-update_cursor (GtkWindow *toplevel,
-               GdkDevice *device,
-               GtkWidget *grab_widget,
-               GtkWidget *target)
+gtk_window_update_cursor (GtkWindow *toplevel,
+                          GdkDevice *device,
+                          GtkWidget *grab_widget,
+                          GtkWidget *target)
 {
   GtkWindowPrivate *priv = gtk_window_get_instance_private (toplevel);
   GdkCursor *cursor = NULL;
@@ -7014,53 +6755,6 @@ update_cursor (GtkWindow *toplevel,
     }
 
   gdk_surface_set_device_cursor (surface, device, cursor);
-}
-
-void
-gtk_window_maybe_update_cursor (GtkWindow *window,
-                                GtkWidget *widget,
-                                GdkDevice *device)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l;
-
-  for (l = priv->foci; l; l = l->next)
-    {
-      GtkPointerFocus *focus = l->data;
-      GtkWidget *grab_widget, *target;
-      GtkWindowGroup *group;
-
-      if (focus->sequence)
-        continue;
-      if (device && device != focus->device)
-        continue;
-
-      group = gtk_window_get_group (window);
-
-      grab_widget = gtk_window_group_get_current_grab (group);
-      if (!grab_widget)
-        grab_widget = gtk_pointer_focus_get_implicit_grab (focus);
-
-      target = gtk_pointer_focus_get_target (focus);
-
-      if (widget)
-        {
-          /* Check whether the changed widget affects the current cursor
-           * lookups.
-           */
-          if (grab_widget && grab_widget != widget &&
-              !gtk_widget_is_ancestor (widget, grab_widget))
-            continue;
-          if (target != widget &&
-              !gtk_widget_is_ancestor (target, widget))
-            continue;
-        }
-
-      update_cursor (focus->toplevel, focus->device, grab_widget, target);
-
-      if (device)
-        break;
-    }
 }
 
 /**
@@ -7143,139 +6837,6 @@ gtk_window_destroy (GtkWindow *window)
   gtk_widget_unrealize (GTK_WIDGET (window));
 
   g_object_unref (window);
-}
-
-GdkDevice**
-gtk_window_get_foci_on_widget (GtkWindow *window,
-                               GtkWidget *widget,
-                               guint     *n_devices)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GPtrArray *array = g_ptr_array_new ();
-  GList *l;
-
-  for (l = priv->foci; l; l = l->next)
-    {
-      GtkPointerFocus *focus = l->data;
-      GtkWidget *target;
-
-      target = gtk_pointer_focus_get_effective_target (focus);
-
-      if (target == widget || gtk_widget_is_ancestor (target, widget))
-        g_ptr_array_add (array, focus->device);
-    }
-
-  if (n_devices)
-    *n_devices = array->len;
-
-  return (GdkDevice**) g_ptr_array_free (array, FALSE);
-}
-
-static void
-gtk_synthesize_grab_crossing (GtkWidget *child,
-                              GdkDevice *device,
-                              GtkWidget *new_grab_widget,
-                              GtkWidget *old_grab_widget,
-                              gboolean   from_grab,
-                              gboolean   was_shadowed,
-                              gboolean   is_shadowed)
-{
-  g_object_ref (child);
-
-  if (is_shadowed)
-    {
-      if (!was_shadowed &&
-          gtk_widget_is_sensitive (child))
-        _gtk_widget_synthesize_crossing (child,
-                                         new_grab_widget,
-                                         device,
-                                         GDK_CROSSING_GTK_GRAB);
-    }
-  else
-    {
-      if (was_shadowed &&
-          gtk_widget_is_sensitive (child))
-        _gtk_widget_synthesize_crossing (old_grab_widget, child,
-                                         device,
-                                         from_grab ? GDK_CROSSING_GTK_GRAB :
-                                         GDK_CROSSING_GTK_UNGRAB);
-    }
-
-  g_object_unref (child);
-}
-
-static void
-gtk_window_propagate_grab_notify (GtkWindow *window,
-                                  GtkWidget *target,
-                                  GdkDevice *device,
-                                  GtkWidget *old_grab_widget,
-                                  GtkWidget *new_grab_widget,
-                                  gboolean   from_grab)
-{
-  GList *l, *widgets = NULL;
-  gboolean was_grabbed = FALSE, is_grabbed = FALSE;
-
-  while (target)
-    {
-      if (target == old_grab_widget)
-        was_grabbed = TRUE;
-      if (target == new_grab_widget)
-        is_grabbed = TRUE;
-      widgets = g_list_prepend (widgets, g_object_ref (target));
-      target = gtk_widget_get_parent (target);
-    }
-
-  widgets = g_list_reverse (widgets);
-
-  for (l = widgets; l; l = l->next)
-    {
-      gboolean was_shadowed, is_shadowed;
-
-      was_shadowed = old_grab_widget && !was_grabbed;
-      is_shadowed = new_grab_widget && !is_grabbed;
-
-      if (l->data == old_grab_widget)
-        was_grabbed = FALSE;
-      if (l->data == new_grab_widget)
-        is_grabbed = FALSE;
-
-      if (was_shadowed == is_shadowed)
-        break;
-
-      gtk_synthesize_grab_crossing (l->data,
-                                    device,
-                                    old_grab_widget,
-                                    new_grab_widget,
-                                    from_grab,
-                                    was_shadowed,
-                                    is_shadowed);
-
-      gtk_widget_reset_controllers (l->data);
-    }
-
-  g_list_free_full (widgets, g_object_unref);
-}
-
-void
-gtk_window_grab_notify (GtkWindow *window,
-                        GtkWidget *old_grab_widget,
-                        GtkWidget *new_grab_widget,
-                        gboolean   from_grab)
-{
-  GtkWindowPrivate *priv = gtk_window_get_instance_private (window);
-  GList *l;
-
-  for (l = priv->foci; l; l = l->next)
-    {
-      GtkPointerFocus *focus = l->data;
-
-      gtk_window_propagate_grab_notify (window,
-                                        gtk_pointer_focus_get_effective_target (focus),
-                                        focus->device,
-                                        old_grab_widget,
-                                        new_grab_widget,
-                                        from_grab);
-    }
 }
 
 /**

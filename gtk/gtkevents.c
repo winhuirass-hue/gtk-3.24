@@ -400,6 +400,7 @@ update_pointer_focus_state (GtkRoot   *root,
                             GdkEvent  *event,
                             GtkWidget *new_target)
 {
+  GtkPointerFocus *focus;
   GtkWidget *old_target = NULL;
   GdkEventSequence *sequence;
   GdkDevice *device;
@@ -410,7 +411,9 @@ update_pointer_focus_state (GtkRoot   *root,
 
   device = gdk_event_get_device (event);
   sequence = gdk_event_get_event_sequence (event);
-  old_target = gtk_root_lookup_pointer_focus (root, device, sequence);
+  focus = gtk_root_lookup_pointer_focus (root, device, sequence);
+  if (focus)
+    old_target = gtk_pointer_focus_get_target (focus);
   if (old_target == new_target)
     return old_target;
 
@@ -505,6 +508,7 @@ handle_pointing_event (GdkEvent *event)
   GdkEventType type;
   gboolean has_implicit;
   GdkModifierType modifiers;
+  GtkPointerFocus *focus;
 
   event_widget = gtk_get_event_widget (event);
   device = gdk_event_get_device (event);
@@ -537,14 +541,17 @@ handle_pointing_event (GdkEvent *event)
       sequence = NULL;
     }
 
+  focus = gtk_root_lookup_pointer_focus (root, device, sequence);
+
   switch ((guint) type)
     {
     case GDK_LEAVE_NOTIFY:
       if (gdk_crossing_event_get_mode (event) == GDK_CROSSING_GRAB)
         {
-          GtkWidget *grab_widget;
+          GtkWidget *grab_widget = NULL;
 
-          grab_widget = gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence);
+          if (focus)
+            grab_widget = gtk_pointer_focus_get_implicit_grab (focus);
           if (grab_widget)
             gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
         }
@@ -575,11 +582,10 @@ handle_pointing_event (GdkEvent *event)
     case GDK_TOUCH_BEGIN:
     case GDK_TOUCH_UPDATE:
     case GDK_MOTION_NOTIFY:
-      target = gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence);
-
+      if (focus)
+        target = gtk_pointer_focus_get_implicit_grab (focus);
       if (!target)
         target = gtk_widget_pick (native, x, y, GTK_PICK_DEFAULT);
-
       if (!target)
         target = GTK_WIDGET (native);
 
@@ -587,7 +593,7 @@ handle_pointing_event (GdkEvent *event)
 
       if (type == GDK_MOTION_NOTIFY || type == GDK_ENTER_NOTIFY)
         {
-          if (!gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence))
+          if (!focus || !gtk_pointer_focus_get_implicit_grab (focus))
             gtk_synthesize_crossing_events (root, GTK_CROSSING_POINTER, old_target, target,
                                             x, y, GDK_CROSSING_NORMAL, NULL);
 
@@ -614,9 +620,9 @@ handle_pointing_event (GdkEvent *event)
       break;
     case GDK_BUTTON_PRESS:
     case GDK_BUTTON_RELEASE:
-      target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
-      has_implicit =
-        gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence) != NULL;
+      if (focus)
+        target = gtk_pointer_focus_get_effective_target (focus);
+      has_implicit = gtk_pointer_focus_get_implicit_grab (focus) != NULL;
       modifiers = gdk_event_get_modifier_state (event);
 
       if (type == GDK_BUTTON_RELEASE &&
@@ -658,7 +664,8 @@ handle_pointing_event (GdkEvent *event)
     case GDK_GRAB_BROKEN:
       if (gdk_grab_broken_event_get_implicit (event))
         {
-          target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
+          if (focus)
+            target = gtk_pointer_focus_get_effective_target (focus);
           if (target)
             gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
         }
@@ -668,7 +675,13 @@ handle_pointing_event (GdkEvent *event)
     }
 
   if (!target)
-    target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
+    {
+      /* Re-lookup, focus might have been cleared */
+      focus = gtk_root_lookup_pointer_focus (root, device, sequence);
+      if (focus)
+        target = gtk_pointer_focus_get_effective_target (focus);
+    }
+
   return target ? target : old_target;
 }
 
@@ -878,13 +891,13 @@ gtk_main_do_event (GdkEvent *event)
 
 static void
 gtk_grab_notify (GtkWindowGroup *group,
-                 GtkWidget      *old_grab_widget,
-                 GtkWidget      *new_grab_widget,
+                 GtkWidget      *old_grab,
+                 GtkWidget      *new_grab,
                  gboolean        from_grab)
 {
   GList *toplevels;
 
-  if (old_grab_widget == new_grab_widget)
+  if (old_grab == new_grab)
     return;
 
   g_object_ref (group);
@@ -897,10 +910,7 @@ gtk_grab_notify (GtkWindowGroup *group,
       GtkWindow *toplevel = toplevels->data;
       toplevels = g_list_delete_link (toplevels, toplevels);
 
-      gtk_window_grab_notify (toplevel,
-                              old_grab_widget,
-                              new_grab_widget,
-                              from_grab);
+      gtk_root_grab_notify (GTK_ROOT (toplevel), old_grab, new_grab, from_grab);
       g_object_unref (toplevel);
     }
 

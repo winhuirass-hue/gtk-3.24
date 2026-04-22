@@ -80,6 +80,15 @@ gboolean      gtk_window_export_handle   (GtkWindow               *window,
 void          gtk_window_unexport_handle (GtkWindow               *window,
                                           const char              *handle);
 
+GtkPointerFocus *gtk_window_lookup_pointer_focus (GtkWindow        *window,
+                                                  GdkDevice        *device,
+                                                  GdkEventSequence *sequence);
+
+void             gtk_window_add_pointer_focus    (GtkWindow       *window,
+                                                  GtkPointerFocus *focus);
+void             gtk_window_remove_pointer_focus (GtkWindow       *window,
+                                                  GtkPointerFocus *focus);
+
 GtkWidget *      gtk_window_lookup_pointer_focus_widget (GtkWindow        *window,
                                                          GdkDevice        *device,
                                                          GdkEventSequence *sequence);
@@ -90,12 +99,6 @@ GtkWidget *      gtk_window_lookup_pointer_focus_implicit_grab (GtkWindow       
                                                                 GdkDevice        *device,
                                                                 GdkEventSequence *sequence);
 
-void             gtk_window_update_pointer_focus (GtkWindow        *window,
-                                                  GdkDevice        *device,
-                                                  GdkEventSequence *sequence,
-                                                  GtkWidget        *target,
-                                                  double            x,
-                                                  double            y);
 void             gtk_window_set_pointer_focus_grab (GtkWindow        *window,
                                                     GdkDevice        *device,
                                                     GdkEventSequence *sequence,
@@ -110,13 +113,14 @@ void             gtk_window_maybe_revoke_implicit_grab (GtkWindow *window,
 void             gtk_window_maybe_update_cursor (GtkWindow *window,
                                                  GtkWidget *widget,
                                                  GdkDevice *device);
+void             gtk_window_update_cursor       (GtkWindow *window,
+                                                 GdkDevice *device,
+                                                 GtkWidget *grab_widget,
+                                                 GtkWidget *widget);
 GtkWidget *      gtk_window_pick_popover (GtkWindow   *window,
                                           double       x,
                                           double       y,
                                           GtkPickFlags flags);
-GdkDevice** gtk_window_get_foci_on_widget (GtkWindow *window,
-                                           GtkWidget *widget,
-                                           guint     *n_devices);
 void gtk_window_grab_notify (GtkWindow *window,
                              GtkWidget *old_grab_widget,
                              GtkWidget *new_grab_widget,

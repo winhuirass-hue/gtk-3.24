@@ -28,6 +28,7 @@
 #include "gtkwindowprivate.h"
 #include "gtkwindowgroup.h"
 #include "gtkprivate.h"
+#include "gtkrootprivate.h"
 
 
 /**
@@ -225,16 +226,10 @@ revoke_implicit_grabs (GtkWindowGroup *window_group,
                        GdkDevice      *device,
                        GtkWidget      *grab_widget)
 {
-  GList *windows, *l;
+  GList *windows = gtk_window_group_list_windows (window_group);
 
-  windows = gtk_window_group_list_windows (window_group);
-
-  for (l = windows; l; l = l->next)
-    {
-      gtk_window_maybe_revoke_implicit_grab (l->data,
-                                             device,
-                                             grab_widget);
-    }
+  for (GList *l = windows; l; l = l->next)
+    gtk_root_maybe_revoke_implicit_grab (GTK_ROOT (l->data), device, grab_widget);
 
   g_list_free (windows);
 }
