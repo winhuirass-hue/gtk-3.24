@@ -26,6 +26,7 @@
 #include "gtkwidgetprivate.h"
 #include "gdk/gdkprivate.h"
 #include "gtkprivate.h"
+#include "gtkwindowprivate.h"
 
 #include "gtkshortcutmanager.h"
 
@@ -175,4 +176,87 @@ void
 gtk_root_queue_restyle (GtkRoot *self)
 {
   gtk_root_start_layout (self);
+}
+
+GtkWidget *
+gtk_root_lookup_pointer_focus (GtkRoot          *root,
+                               GdkDevice        *device,
+                               GdkEventSequence *sequence)
+{
+  g_return_val_if_fail (GTK_IS_WINDOW (root), NULL);
+
+  return gtk_window_lookup_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+}
+
+GtkWidget *
+gtk_root_lookup_effective_pointer_focus (GtkRoot          *root,
+                                         GdkDevice        *device,
+                                         GdkEventSequence *sequence)
+{
+  g_return_val_if_fail (GTK_IS_WINDOW (root), NULL);
+
+  return gtk_window_lookup_effective_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+}
+
+GtkWidget *
+gtk_root_lookup_pointer_focus_implicit_grab (GtkRoot          *root,
+                                             GdkDevice        *device,
+                                             GdkEventSequence *sequence)
+{
+  g_return_val_if_fail (GTK_IS_WINDOW (root), NULL);
+
+  return gtk_window_lookup_pointer_focus_implicit_grab (GTK_WINDOW (root), device, sequence);
+}
+
+void
+gtk_root_update_pointer_focus (GtkRoot          *root,
+                               GdkDevice        *device,
+                               GdkEventSequence *sequence,
+                               GtkWidget        *target,
+                               double            x,
+                               double            y)
+{
+  g_return_if_fail (GTK_IS_WINDOW (root));
+
+  gtk_window_update_pointer_focus (GTK_WINDOW (root), device, sequence, target, x, y);
+}
+
+void
+gtk_root_set_pointer_focus_grab (GtkRoot          *root,
+                                 GdkDevice        *device,
+                                 GdkEventSequence *sequence,
+                                 GtkWidget        *grab_widget)
+{
+  g_return_if_fail (GTK_IS_WINDOW (root));
+
+  gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device, sequence, grab_widget);
+}
+
+void
+gtk_root_update_pointer_focus_state_change (GtkRoot   *root,
+                                            GtkWidget *widget)
+{
+  g_return_if_fail (GTK_IS_WINDOW (root));
+
+  gtk_window_update_pointer_focus_on_state_change (GTK_WINDOW (root), widget);
+}
+
+void
+gtk_root_maybe_revoke_implicit_grab (GtkRoot   *root,
+                                     GdkDevice *device,
+                                     GtkWidget *grab_widget)
+{
+  g_return_if_fail (GTK_IS_WINDOW (root));
+
+  gtk_window_maybe_revoke_implicit_grab (GTK_WINDOW (root), device, grab_widget);
+}
+
+void
+gtk_root_maybe_update_cursor (GtkRoot   *root,
+                              GtkWidget *widget,
+                              GdkDevice *device)
+{
+  g_return_if_fail (GTK_IS_WINDOW (root));
+
+  gtk_window_maybe_update_cursor (GTK_WINDOW (root), widget, device);
 }

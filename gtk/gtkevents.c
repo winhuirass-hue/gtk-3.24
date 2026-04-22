@@ -36,6 +36,7 @@
 #include "gtktooltipprivate.h"
 #include "gtkwidgetprivate.h"
 #include "gtkwindowprivate.h"
+#include "gtkrootprivate.h"
 #include "gtkwindowgroup.h"
 #include "gtkroot.h"
 #include "gtknative.h"
@@ -409,7 +410,7 @@ update_pointer_focus_state (GtkRoot   *root,
 
   device = gdk_event_get_device (event);
   sequence = gdk_event_get_event_sequence (event);
-  old_target = gtk_window_lookup_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+  old_target = gtk_root_lookup_pointer_focus (root, device, sequence);
   if (old_target == new_target)
     return old_target;
 
@@ -424,8 +425,7 @@ update_pointer_focus_state (GtkRoot   *root,
   p.x -= nx;
   p.y -= ny;
 
-  gtk_window_update_pointer_focus (GTK_WINDOW (root), device, sequence,
-                                   new_target, p.x, p.y);
+  gtk_root_update_pointer_focus (root, device, sequence, new_target, p.x, p.y);
 
   return old_target;
 }
@@ -544,15 +544,9 @@ handle_pointing_event (GdkEvent *event)
         {
           GtkWidget *grab_widget;
 
-          grab_widget =
-            gtk_window_lookup_pointer_focus_implicit_grab (GTK_WINDOW (root),
-                                                           device,
-                                                           sequence);
+          grab_widget = gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence);
           if (grab_widget)
-            {
-              gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device,
-                                                 sequence, NULL);
-            }
+            gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
         }
 
       old_target = update_pointer_focus_state (root, event, NULL);
@@ -562,8 +556,7 @@ handle_pointing_event (GdkEvent *event)
     case GDK_TOUCH_END:
     case GDK_TOUCH_CANCEL:
       old_target = update_pointer_focus_state (root, event, NULL);
-      gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device,
-                                         sequence, NULL);
+      gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
       break;
     case GDK_DRAG_LEAVE:
       {
@@ -582,7 +575,7 @@ handle_pointing_event (GdkEvent *event)
     case GDK_TOUCH_BEGIN:
     case GDK_TOUCH_UPDATE:
     case GDK_MOTION_NOTIFY:
-      target = gtk_window_lookup_pointer_focus_implicit_grab (GTK_WINDOW (root), device, sequence);
+      target = gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence);
 
       if (!target)
         target = gtk_widget_pick (native, x, y, GTK_PICK_DEFAULT);
@@ -594,13 +587,11 @@ handle_pointing_event (GdkEvent *event)
 
       if (type == GDK_MOTION_NOTIFY || type == GDK_ENTER_NOTIFY)
         {
-          if (!gtk_window_lookup_pointer_focus_implicit_grab (GTK_WINDOW (root), device, sequence))
-            {
-              gtk_synthesize_crossing_events (root, GTK_CROSSING_POINTER, old_target, target,
-                                              x, y, GDK_CROSSING_NORMAL, NULL);
-            }
+          if (!gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence))
+            gtk_synthesize_crossing_events (root, GTK_CROSSING_POINTER, old_target, target,
+                                            x, y, GDK_CROSSING_NORMAL, NULL);
 
-          gtk_window_maybe_update_cursor (GTK_WINDOW (root), NULL, device);
+          gtk_root_maybe_update_cursor (root, NULL, device);
         }
       else if ((old_target != target) &&
                (type == GDK_DRAG_ENTER || type == GDK_DRAG_MOTION || type == GDK_DROP_START))
@@ -613,7 +604,7 @@ handle_pointing_event (GdkEvent *event)
         }
       else if (type == GDK_TOUCH_BEGIN)
         {
-          gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device, sequence, target);
+          gtk_root_set_pointer_focus_grab (root, device, sequence, target);
         }
 
       /* Let it take the effective pointer focus anyway, as it may change due
@@ -623,9 +614,9 @@ handle_pointing_event (GdkEvent *event)
       break;
     case GDK_BUTTON_PRESS:
     case GDK_BUTTON_RELEASE:
-      target = gtk_window_lookup_effective_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+      target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
       has_implicit =
-        gtk_window_lookup_pointer_focus_implicit_grab (GTK_WINDOW (root), device, sequence) != NULL;
+        gtk_root_lookup_pointer_focus_implicit_grab (root, device, sequence) != NULL;
       modifiers = gdk_event_get_modifier_state (event);
 
       if (type == GDK_BUTTON_RELEASE &&
@@ -637,14 +628,14 @@ handle_pointing_event (GdkEvent *event)
         {
           GtkWidget *new_target = gtk_widget_pick (native, x, y, GTK_PICK_DEFAULT);
 
-          gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device, sequence, NULL);
+          gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
 
           if (new_target == NULL)
             new_target = GTK_WIDGET (root);
 
           gtk_synthesize_crossing_events (root, GTK_CROSSING_POINTER, target, new_target,
                                           x, y, GDK_CROSSING_UNGRAB, NULL);
-          gtk_window_maybe_update_cursor (GTK_WINDOW (root), NULL, device);
+          gtk_root_maybe_update_cursor (root, NULL, device);
           update_pointer_focus_state (root, event, new_target);
         }
       else if (type == GDK_BUTTON_PRESS &&
@@ -655,8 +646,7 @@ handle_pointing_event (GdkEvent *event)
                              GDK_BUTTON4_MASK |
                              GDK_BUTTON5_MASK)) == 0)
         {
-          gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device,
-                                             sequence, target);
+          gtk_root_set_pointer_focus_grab (root, device, sequence, target);
         }
 
       break;
@@ -668,11 +658,9 @@ handle_pointing_event (GdkEvent *event)
     case GDK_GRAB_BROKEN:
       if (gdk_grab_broken_event_get_implicit (event))
         {
-          target = gtk_window_lookup_effective_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+          target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
           if (target)
-            {
-              gtk_window_set_pointer_focus_grab (GTK_WINDOW (root), device, sequence, NULL);
-            }
+            gtk_root_set_pointer_focus_grab (root, device, sequence, NULL);
         }
       break;
     default:
@@ -680,7 +668,7 @@ handle_pointing_event (GdkEvent *event)
     }
 
   if (!target)
-    target = gtk_window_lookup_effective_pointer_focus_widget (GTK_WINDOW (root), device, sequence);
+    target = gtk_root_lookup_effective_pointer_focus (root, device, sequence);
   return target ? target : old_target;
 }
 
@@ -804,7 +792,7 @@ gtk_main_do_event (GdkEvent *event)
    * Drag events are also not redirected, since it isn't
    * clear what the semantics of that would be.
    */
-  switch ((guint)gdk_event_get_event_type (event))
+  switch ((unsigned int) gdk_event_get_event_type (event))
     {
     case GDK_DELETE:
       if (!gtk_window_group_get_current_grab (window_group) ||
