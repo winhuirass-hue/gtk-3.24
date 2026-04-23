@@ -548,11 +548,58 @@ gtk_keyval_trigger_trigger (GtkShortcutTrigger *trigger,
                             gboolean            enable_mnemonics)
 {
   GtkKeyvalTrigger *self = GTK_KEYVAL_TRIGGER (trigger);
+  GdkKeyMatch match;
 
   if (gdk_event_get_event_type (event) != GDK_KEY_PRESS)
     return GDK_KEY_MATCH_NONE;
 
-  return gdk_key_event_matches (event, self->keyval, self->modifiers);
+  match = gdk_key_event_matches (event, self->keyval, self->modifiers);
+
+  if (match == GDK_KEY_MATCH_NONE)
+    {
+      guint actual_keyval;
+      GdkModifierType actual_mods;
+      guint lower_key;
+      const GdkModifierType accel_mask =
+          GDK_CONTROL_MASK |
+          GDK_ALT_MASK |
+          GDK_SUPER_MASK |
+          GDK_HYPER_MASK |
+          GDK_META_MASK;
+
+      lower_key = gdk_keyval_to_lower (self->keyval);
+
+      if ((self->modifiers & accel_mask) != 0 &&
+          (lower_key >= GDK_KEY_a && lower_key <= GDK_KEY_z) &&
+          gdk_key_event_get_match (event, &actual_keyval, &actual_mods) &&
+          actual_mods == self->modifiers)
+        {
+          GdkDisplay *display;
+          GdkKeymapKey *keys = NULL;
+          int n_keys = 0;
+          guint keycode;
+          int i;
+
+          display = gdk_event_get_display (event);
+          keycode = gdk_key_event_get_keycode (event);
+
+          if (gdk_display_map_keyval (display, lower_key, &keys, &n_keys))
+            {
+              for (i = 0; i < n_keys; i++)
+                {
+                  if (keys[i].keycode == keycode)
+                    {
+                      match = GDK_KEY_MATCH_EXACT;
+                      break;
+                    }
+                }
+
+              g_free (keys);
+            }
+        }
+    }
+
+  return match;
 }
 
 static guint
