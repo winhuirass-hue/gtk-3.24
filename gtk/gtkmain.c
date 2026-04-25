@@ -30,6 +30,7 @@
 #include "gdk/gdkdebugprivate.h"
 #include "gsk/gskprivate.h"
 #include "gsk/gskrendernodeprivate.h"
+#include "gtkcolordialogprivate.h"
 #include "gtknative.h"
 
 #include <locale.h>
@@ -638,6 +639,7 @@ do_post_parse_initialization (void)
 #endif
   gtk_im_modules_init ();
   gtk_media_file_extension_init ();
+  gtk_color_selection_extension_init ();
   gdk_profiler_end_mark (before, "Init modules", NULL);
 
   before = GDK_PROFILER_CURRENT_TIME;

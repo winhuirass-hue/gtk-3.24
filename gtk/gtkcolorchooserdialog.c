@@ -28,6 +28,11 @@
 #include "deprecated/gtkcolorchooserdialog.h"
 #include "deprecated/gtkcolorchooserwidget.h"
 
+#include "gtkcolordialogprivate.h"
+#include "gdk/gdkrgbaprivate.h"
+
+#include <glib/gi18n-lib.h>
+
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
 
 /**
@@ -83,10 +88,17 @@ enum
 };
 
 static void gtk_color_chooser_dialog_iface_init (GtkColorChooserInterface *iface);
+static void gtk_color_chooser_dialog_selection_init (GtkColorSelectionInterface *iface);
 
 G_DEFINE_TYPE_WITH_CODE (GtkColorChooserDialog, gtk_color_chooser_dialog, GTK_TYPE_DIALOG,
+                         G_IMPLEMENT_INTERFACE (GTK_TYPE_COLOR_SELECTION,
+                                                gtk_color_chooser_dialog_selection_init)
                          G_IMPLEMENT_INTERFACE (GTK_TYPE_COLOR_CHOOSER,
-                                                gtk_color_chooser_dialog_iface_init))
+                                                gtk_color_chooser_dialog_iface_init)
+                         g_io_extension_point_implement (GTK_COLOR_SELECTION_EXTENSION_POINT_NAME,
+                                                         g_define_type_id,
+                                                         "gtk",
+                                                         10);)
 
 static void
 propagate_notify (GObject               *o,
@@ -295,6 +307,59 @@ gtk_color_chooser_dialog_iface_init (GtkColorChooserInterface *iface)
   iface->get_rgba = gtk_color_chooser_dialog_get_rgba;
   iface->set_rgba = gtk_color_chooser_dialog_set_rgba;
   iface->add_palette = gtk_color_chooser_dialog_add_palette;
+}
+
+static void
+gtk_color_chooser_dialog_selection_setup (GtkColorSelection *selection,
+                                          GtkWindow         *parent,
+                                          const GdkColor    *initial,
+                                          GtkColorDialog    *dialog)
+{
+  GtkColorChooserDialog *self = GTK_COLOR_CHOOSER_DIALOG (selection);
+  const char *title;
+  GdkRGBA rgba = GDK_RGBA_BLACK;
+
+  title = gtk_color_dialog_get_title (dialog);
+  if (!title)
+    title = _("Pick a Color");
+
+  if (initial)
+    {
+      GdkColor c;
+
+      gdk_color_convert (&c, GDK_COLOR_STATE_SRGB, initial);
+      rgba.red = c.red;
+      rgba.green = c.green;
+      rgba.blue = c.blue;
+      rgba.alpha = c.alpha;
+      gdk_color_finish (&c);
+    }
+
+  g_object_set (self,
+                "transient-for", parent,
+                "destroy-with-parent", TRUE,
+                "title", title,
+                "modal", gtk_color_dialog_get_modal (dialog),
+                "use-alpha", gtk_color_dialog_get_with_alpha (dialog),
+                "rgba", &rgba,
+                NULL);
+}
+
+static void
+gtk_color_chooser_dialog_selection_get_color (GtkColorSelection *selection,
+                                              GdkColor          *color)
+{
+  GdkRGBA rgba;
+
+  gtk_color_chooser_get_rgba (GTK_COLOR_CHOOSER (selection), &rgba);
+  gdk_color_init_from_rgba (color, &rgba);
+}
+
+static void
+gtk_color_chooser_dialog_selection_init (GtkColorSelectionInterface *iface)
+{
+  iface->setup = gtk_color_chooser_dialog_selection_setup;
+  iface->get_color = gtk_color_chooser_dialog_selection_get_color;
 }
 
 /**
