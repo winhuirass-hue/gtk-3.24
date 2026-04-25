@@ -58,6 +58,6 @@ void                    gtk_list_item_base_update               (GtkListItemBase
 guint                   gtk_list_item_base_get_position         (GtkListItemBase        *self);
 gpointer                gtk_list_item_base_get_item             (GtkListItemBase        *self);
 gboolean                gtk_list_item_base_get_selected         (GtkListItemBase        *self);
-
+void                    gtk_list_item_base_force_rebind         (GtkListItemBase        *self);
 G_END_DECLS
 

@@ -136,5 +136,9 @@ void            gtk_column_view_scroll_to                       (GtkColumnView  
                                                                  GtkListScrollFlags      flags,
                                                                  GtkScrollInfo          *scroll);
 
+GDK_AVAILABLE_IN_4_24
+void            gtk_column_view_refresh_rows                    (GtkColumnView          *self,
+                                                                 guint                   position,
+                                                                 gint                    n_items);
 G_END_DECLS
 
