@@ -262,6 +262,42 @@ gtk_list_base_adjustment_value_changed_cb (GtkAdjustment *adjustment,
 }
 
 static void
+gtk_list_base_set_adjustment_values (GtkListBase    *self,
+                                     GtkOrientation  orientation,
+                                     int             value,
+                                     int             size,
+                                     int             page_size)
+{
+  GtkListBasePrivate *priv = gtk_list_base_get_instance_private (self);
+
+  if (gtk_list_base_adjustment_is_flipped (self, orientation))
+    value = size - page_size - value;
+
+  double new_value = gtk_adjustment_get_value(priv->adjustment[orientation]);
+  if (value != (int) new_value)
+    new_value = value;
+
+  size = MAX (size, page_size);
+  new_value = MAX (new_value, 0);
+  new_value = MIN (new_value, size - page_size);
+
+  g_signal_handlers_block_by_func (priv->adjustment[orientation],
+                                   gtk_list_base_adjustment_value_changed_cb,
+                                   self);
+
+  gtk_adjustment_configure (priv->adjustment[orientation],
+                            new_value,
+                            0,
+                            size,
+                            page_size * 0.1,
+                            page_size * 0.9,
+                            page_size);
+  g_signal_handlers_unblock_by_func (priv->adjustment[orientation],
+                                     gtk_list_base_adjustment_value_changed_cb,
+                                     self);
+}
+
+static void
 gtk_list_base_clear_adjustment (GtkListBase    *self,
                                 GtkOrientation  orientation)
 {
@@ -894,6 +930,7 @@ gtk_list_base_scroll_to_item (GtkListBase   *self,
   double align_along, align_across;
   GtkPackType side_along, side_across;
   GdkRectangle area, viewport;
+  int width, height;
   int x, y;
 
   if (!gtk_list_base_get_allocation (GTK_LIST_BASE (self), pos, &area))
@@ -904,10 +941,10 @@ gtk_list_base_scroll_to_item (GtkListBase   *self,
 
   gtk_list_base_get_adjustment_values (GTK_LIST_BASE (self),
                                        gtk_list_base_get_orientation (GTK_LIST_BASE (self)),
-                                       &viewport.y, NULL, &viewport.height);
+                                       &viewport.y, &height, &viewport.height);
   gtk_list_base_get_adjustment_values (GTK_LIST_BASE (self),
                                        gtk_list_base_get_opposite_orientation (GTK_LIST_BASE (self)),
-                                       &viewport.x, NULL, &viewport.width);
+                                       &viewport.x, &width, &viewport.width);
 
   gtk_scroll_info_compute_scroll (scroll, &area, &viewport, &x, &y);
 
@@ -920,6 +957,15 @@ gtk_list_base_scroll_to_item (GtkListBase   *self,
                                       x, viewport.width,
                                       priv->anchor_align_across, priv->anchor_side_across,
                                       &align_across, &side_across);
+
+  // The real adjustment value is set in allocation, which is triggered by
+  // changing the anchor.  We make a best guess here in order to cancel any
+  // animations or kinetic scrolling, which would otherwise cause the anchor
+  // to be reset.
+  gtk_list_base_set_adjustment_values (self, GTK_ORIENTATION_VERTICAL,
+                                       y, height, viewport.height);
+  gtk_list_base_set_adjustment_values (self, GTK_ORIENTATION_HORIZONTAL,
+                                       x, width, viewport.width);
 
   gtk_list_base_set_anchor (self,
                             pos,
@@ -2085,36 +2131,6 @@ gtk_list_base_init_real (GtkListBase      *self,
   g_signal_connect (controller, "motion", G_CALLBACK (gtk_list_base_drag_motion), NULL);
   g_signal_connect (controller, "leave", G_CALLBACK (gtk_list_base_drag_leave), NULL);
   gtk_widget_add_controller (GTK_WIDGET (self), controller);
-}
-
-static void
-gtk_list_base_set_adjustment_values (GtkListBase    *self,
-                                     GtkOrientation  orientation,
-                                     int             value,
-                                     int             size,
-                                     int             page_size)
-{
-  GtkListBasePrivate *priv = gtk_list_base_get_instance_private (self);
-
-  size = MAX (size, page_size);
-  value = MAX (value, 0);
-  value = MIN (value, size - page_size);
-
-  g_signal_handlers_block_by_func (priv->adjustment[orientation],
-                                   gtk_list_base_adjustment_value_changed_cb,
-                                   self);
-  gtk_adjustment_configure (priv->adjustment[orientation],
-                            gtk_list_base_adjustment_is_flipped (self, orientation)
-                              ? size - page_size - value
-                              : value,
-                            0,
-                            size,
-                            page_size * 0.1,
-                            page_size * 0.9,
-                            page_size);
-  g_signal_handlers_unblock_by_func (priv->adjustment[orientation],
-                                     gtk_list_base_adjustment_value_changed_cb,
-                                     self);
 }
 
 static void

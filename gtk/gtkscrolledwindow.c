@@ -266,6 +266,7 @@ typedef struct
   guint    propagate_natural_height : 1;
   guint    smooth_scroll            : 1;
   guint    scrolling                : 1;
+  guint    in_deceleration_cb       : 1;
 
   int      min_content_width;
   int      min_content_height;
@@ -3369,6 +3370,7 @@ scrolled_window_deceleration_cb (GtkWidget         *widget,
   double position;
   gboolean retval = G_SOURCE_REMOVE;
 
+  priv->in_deceleration_cb = true;
   current_time = gdk_frame_clock_get_frame_time (frame_clock);
   priv->last_deceleration_time = current_time;
 
@@ -3398,6 +3400,7 @@ scrolled_window_deceleration_cb (GtkWidget         *widget,
   else
     gtk_scrolled_window_invalidate_overshoot (scrolled_window);
 
+  priv->in_deceleration_cb = false;
   return retval;
 }
 
@@ -3674,6 +3677,9 @@ gtk_scrolled_window_adjustment_value_changed (GtkAdjustment *adjustment,
   GtkScrolledWindowPrivate *priv = gtk_scrolled_window_get_instance_private (scrolled_window);
 
   maybe_emit_edge_reached (scrolled_window, adjustment);
+
+  if (!priv->in_deceleration_cb)
+    gtk_scrolled_window_cancel_deceleration (scrolled_window);
 
   /* Allow overshooting for kinetic scrolling operations */
   if (priv->deceleration_id)

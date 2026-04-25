@@ -463,6 +463,10 @@ gtk_adjustment_begin_updating (GtkAdjustment *adjustment)
                                         G_CALLBACK (gtk_adjustment_on_frame_clock_update), adjustment);
       gdk_frame_clock_begin_updating (priv->clock);
     }
+
+  // Indicates an intention to start changing the value.  Needed to cancel
+  // kinetic scrolling.
+  emit_value_changed(adjustment);
 }
 
 static void
