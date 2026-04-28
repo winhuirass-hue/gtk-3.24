@@ -4217,7 +4217,6 @@ gdk_wayland_seat_grab (GdkSeat                *seat,
                                     surface,
                                     owner_events,
                                     next_serial,
-                                    evtime,
                                     FALSE);
 
       _gdk_display_device_grab_update (display, wayland_seat->logical_pointer,
@@ -4241,7 +4240,6 @@ gdk_wayland_seat_grab (GdkSeat                *seat,
                                     surface,
                                     owner_events,
                                     next_serial,
-                                    evtime,
                                     FALSE);
 
       _gdk_display_device_grab_update (display, wayland_seat->logical_touch,
@@ -4261,7 +4259,6 @@ gdk_wayland_seat_grab (GdkSeat                *seat,
                                     surface,
                                     owner_events,
                                     next_serial,
-                                    evtime,
                                     FALSE);
 
       _gdk_display_device_grab_update (display, wayland_seat->logical_keyboard,
@@ -4289,7 +4286,6 @@ gdk_wayland_seat_grab (GdkSeat                *seat,
                                         surface,
                                         owner_events,
                                         _gdk_display_get_next_serial (display),
-                                        evtime,
                                         FALSE);
 
           _gdk_display_device_grab_update (display, tablet->logical_device,
