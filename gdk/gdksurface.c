@@ -2246,7 +2246,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
                                         device,
                                         event_surface,
                                         FALSE,
-                                        GDK_ALL_EVENTS_MASK,
                                         serial,
                                         gdk_event_get_time (event),
                                         TRUE);
@@ -3217,7 +3216,7 @@ gdk_surface_set_attached_context (GdkSurface     *self,
                                   GdkDrawContext *context)
 {
   GdkSurfacePrivate *priv = gdk_surface_get_instance_private (self);
-  
+
   priv->attached_context = context;
 }
 
