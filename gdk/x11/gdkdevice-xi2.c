@@ -91,15 +91,6 @@ static void gdk_x11_device_xi2_set_surface_cursor (GdkDevice *device,
                                                   GdkSurface *surface,
                                                   GdkCursor *cursor);
 
-static GdkGrabStatus gdk_x11_device_xi2_grab   (GdkDevice     *device,
-                                                GdkSurface     *surface,
-                                                gboolean       owner_events,
-                                                GdkSurface     *confine_to,
-                                                GdkCursor     *cursor,
-                                                guint32        time_);
-static void          gdk_x11_device_xi2_ungrab (GdkDevice     *device,
-                                                guint32        time_);
-
 static GdkSurface * gdk_x11_device_xi2_surface_at_position (GdkDevice       *device,
                                                             double          *win_x,
                                                             double          *win_y,
@@ -122,8 +113,6 @@ gdk_x11_device_xi2_class_init (GdkX11DeviceXI2Class *klass)
   object_class->set_property = gdk_x11_device_xi2_set_property;
 
   device_class->set_surface_cursor = gdk_x11_device_xi2_set_surface_cursor;
-  device_class->grab = gdk_x11_device_xi2_grab;
-  device_class->ungrab = gdk_x11_device_xi2_ungrab;
   device_class->surface_at_position = gdk_x11_device_xi2_surface_at_position;
 
   g_object_class_install_property (object_class,
@@ -348,11 +337,10 @@ gdk_x11_convert_grab_status (int status)
     }
 }
 
-static GdkGrabStatus
+GdkGrabStatus
 gdk_x11_device_xi2_grab (GdkDevice    *device,
                          GdkSurface   *surface,
                          gboolean      owner_events,
-                         GdkSurface   *confine_to,
                          GdkCursor    *cursor,
                          guint32       time_)
 {
@@ -366,8 +354,6 @@ gdk_x11_device_xi2_grab (GdkDevice    *device,
 
   display = gdk_device_get_display (device);
   device_manager_xi2 = GDK_X11_DEVICE_MANAGER_XI2 (GDK_X11_DISPLAY (display)->device_manager);
-
-  /* FIXME: confine_to is actually unused */
 
   xwindow = GDK_SURFACE_XID (surface);
 
@@ -399,7 +385,7 @@ gdk_x11_device_xi2_grab (GdkDevice    *device,
   return gdk_x11_convert_grab_status (status);
 }
 
-static void
+void
 gdk_x11_device_xi2_ungrab (GdkDevice *device,
                            guint32    time_)
 {
