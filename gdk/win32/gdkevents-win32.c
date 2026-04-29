@@ -2870,8 +2870,11 @@ gdk_event_translate (MSG *msg,
 
         if ((pointer_grab != NULL && pointer_grab->surface == surface) ||
             (keyboard_grab != NULL && keyboard_grab->surface == surface))
-          gdk_device_ungrab (device, msg -> time);
-    }
+          {
+            ReleaseCapture ();
+            gdk_device_ungrab (device, msg -> time);
+          }
+      }
 
       /* Update surface HWND state */
       if (hwndpos->flags & (SWP_STATECHANGED | SWP_SHOWWINDOW | SWP_HIDEWINDOW))
@@ -3036,6 +3039,7 @@ gdk_event_translate (MSG *msg,
           (keyboard_grab && keyboard_grab->surface == surface))
       {
         GdkDevice *device = gdk_seat_get_pointer (gdk_display_get_default_seat (display));
+        ReleaseCapture ();
         gdk_device_ungrab (device, msg -> time);
       }
 
