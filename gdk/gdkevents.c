@@ -612,8 +612,6 @@ gdk_event_queue_handle_scroll_compression (GdkDisplay *display)
   GdkDevice *device = NULL;
   GList *scrolls = NULL;
   GArray *history = NULL;
-  GdkScrollUnit scroll_unit = GDK_SCROLL_UNIT_WHEEL;
-  gboolean scroll_unit_defined = FALSE;
   GdkTimeCoord hist;
 
   l = g_queue_peek_tail_link (&display->queued_events);
@@ -621,7 +619,6 @@ gdk_event_queue_handle_scroll_compression (GdkDisplay *display)
   while (l)
     {
       GdkEvent *event = l->data;
-      GdkScrollEvent *scroll_event = (GdkScrollEvent *) event;
 
       if (event->flags & GDK_EVENT_PENDING)
         break;
@@ -638,14 +635,8 @@ gdk_event_queue_handle_scroll_compression (GdkDisplay *display)
           device != event->device)
         break;
 
-      if (scroll_unit_defined &&
-          scroll_unit != scroll_event->unit)
-        break;
-
       surface = event->surface;
       device = event->device;
-      scroll_unit = scroll_event->unit;
-      scroll_unit_defined = TRUE;
       scrolls = l;
 
       l = l->prev;
@@ -718,7 +709,6 @@ gdk_event_queue_handle_scroll_compression (GdkDisplay *display)
                                     dx,
                                     dy,
                                     gdk_scroll_event_is_stop (old_event),
-                                    scroll_unit,
                                     gdk_scroll_event_get_relative_direction (old_event));
 
       ((GdkScrollEvent *)event)->history = history;
@@ -2410,7 +2400,6 @@ gdk_scroll_event_new (GdkSurface                 *surface,
                       double                      delta_x,
                       double                      delta_y,
                       gboolean                    is_stop,
-                      GdkScrollUnit               unit,
                       GdkScrollRelativeDirection  rel_dir)
 {
   GdkScrollEvent *self = gdk_event_alloc (GDK_SCROLL, surface, device, time);
@@ -2421,7 +2410,6 @@ gdk_scroll_event_new (GdkSurface                 *surface,
   self->delta_x = delta_x;
   self->delta_y = delta_y;
   self->is_stop = is_stop;
-  self->unit = unit;
   self->relative_direction = rel_dir;
 
   return (GdkEvent *) self;
@@ -2464,7 +2452,6 @@ gdk_scroll_event_new_discrete (GdkSurface                 *surface,
   self->direction = direction;
   self->delta_x = delta_x;
   self->delta_y = delta_y;
-  self->unit = GDK_SCROLL_UNIT_WHEEL;
   self->relative_direction = rel_dir;
 
   return (GdkEvent *) self;
@@ -2509,7 +2496,6 @@ gdk_scroll_event_new_value120 (GdkSurface                 *surface,
   self->direction = direction;
   self->delta_x = delta_x / 120.0;
   self->delta_y = delta_y / 120.0;
-  self->unit = GDK_SCROLL_UNIT_WHEEL;
   self->relative_direction = rel_dir;
 
   return (GdkEvent *) self;
@@ -2605,13 +2591,15 @@ gdk_scroll_event_is_stop (GdkEvent *event)
 GdkScrollUnit
 gdk_scroll_event_get_unit (GdkEvent *event)
 {
-  GdkScrollEvent *self = (GdkScrollEvent *) event;
-
   g_return_val_if_fail (GDK_IS_EVENT (event), GDK_SCROLL_UNIT_WHEEL);
   g_return_val_if_fail (GDK_IS_EVENT_TYPE (event, GDK_SCROLL),
                         GDK_SCROLL_UNIT_WHEEL);
 
-  return self->unit;
+  GdkDevice* scroll_device = gdk_event_get_device (event);
+  GdkInputSource scroll_source = gdk_device_get_source (scroll_device);
+
+  return scroll_source == GDK_SOURCE_MOUSE ?
+    GDK_SCROLL_UNIT_WHEEL : GDK_SCROLL_UNIT_SURFACE;
 }
 
 /**

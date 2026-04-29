@@ -231,7 +231,6 @@ struct _GdkScrollEvent
   gboolean is_stop;
   GdkDeviceTool *tool;
   GArray *history; /* <GdkTimeCoord> */
-  GdkScrollUnit unit;
   GdkScrollRelativeDirection relative_direction;
 };
 
@@ -491,7 +490,6 @@ GdkEvent * gdk_scroll_event_new         (GdkSurface                 *surface,
                                          double                      delta_x,
                                          double                      delta_y,
                                          gboolean                    is_stop,
-                                         GdkScrollUnit               unit,
                                          GdkScrollRelativeDirection  rel_dir);
 
 GdkEvent * gdk_scroll_event_new_discrete (GdkSurface                 *surface,
