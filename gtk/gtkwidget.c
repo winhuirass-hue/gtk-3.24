@@ -79,6 +79,7 @@
 #include "gdk/gdkeventsprivate.h"
 #include "gdk/gdkprofilerprivate.h"
 #include "gdk/gdkmonitorprivate.h"
+#include "gdk/gdkframeclockidleprivate.h"
 #include "gsk/gskdebugprivate.h"
 #include "gsk/gskrendererprivate.h"
 
@@ -3718,6 +3719,48 @@ gtk_widget_get_resize_queued (GtkWidget *widget)
   return priv->resize_queued;
 }
 
+#ifdef G_ENABLE_DEBUG
+static void
+gtk_widget_validate_resize_phase (GtkWidget *widget)
+{
+  GdkFrameClock *frame_clock;
+  GdkFrameClockPhase phase;
+  GtkWidget *child;
+
+  frame_clock = gtk_widget_get_frame_clock (widget);
+  if (!frame_clock || G_UNLIKELY (!GDK_IS_FRAME_CLOCK_IDLE (frame_clock)))
+    return;
+  phase = _gdk_frame_clock_idle_get_phase (frame_clock);
+
+  switch (phase)
+    {
+    case GDK_FRAME_CLOCK_PHASE_NONE:
+    case GDK_FRAME_CLOCK_PHASE_FLUSH_EVENTS:
+    case GDK_FRAME_CLOCK_PHASE_UPDATE:
+      /* OK */
+      break;
+    case GDK_FRAME_CLOCK_PHASE_BEFORE_PAINT:
+    case GDK_FRAME_CLOCK_PHASE_LAYOUT:
+    case GDK_FRAME_CLOCK_PHASE_PAINT:
+    case GDK_FRAME_CLOCK_PHASE_RESUME_EVENTS:
+    case GDK_FRAME_CLOCK_PHASE_AFTER_PAINT:
+    default:
+      /* If it's due to one of our own children, don't complain again */
+      for (child = _gtk_widget_get_first_child (widget);
+           child != NULL;
+           child = _gtk_widget_get_next_sibling (child))
+         {
+           if (gtk_widget_get_resize_queued (child))
+             return;
+         }
+      /* Otherwise, this widget is to blame */
+      g_warning ("%s %p changed its size requirements too late in a frame cycle",
+                 gtk_widget_get_name (widget), widget);
+      break;
+    }
+}
+#endif
+
 /**
  * gtk_widget_queue_resize:
  * @widget: a widget
@@ -3748,6 +3791,9 @@ gtk_widget_queue_resize (GtkWidget *widget)
     return;
 
   gtk_widget_push_verify_invariants (widget);
+#ifdef G_ENABLE_DEBUG
+  gtk_widget_validate_resize_phase (widget);
+#endif
 
   gtk_widget_queue_draw (widget);
 

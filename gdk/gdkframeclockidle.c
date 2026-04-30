@@ -832,3 +832,13 @@ _gdk_frame_clock_idle_new (void)
 
   return GDK_FRAME_CLOCK (clock);
 }
+
+#ifdef G_ENABLE_DEBUG
+GdkFrameClockPhase
+_gdk_frame_clock_idle_get_phase (GdkFrameClock *clock)
+{
+  g_return_val_if_fail (GDK_IS_FRAME_CLOCK_IDLE (clock), GDK_FRAME_CLOCK_PHASE_NONE);
+
+  return GDK_FRAME_CLOCK_IDLE (clock)->priv->phase;
+}
+#endif
