@@ -178,7 +178,7 @@ determine_scale_and_subpixel_grid (const graphene_size_t *scale,
 {
   if (gsk_transform_get_fine_category (modelview) <= GSK_FINE_TRANSFORM_CATEGORY_2D)
     {
-      *sx = *sy = ceilf (MAX (scale->width, scale->height) + 0.5);
+     *sx = *sy = MIN (ceilf (MAX (scale->width, scale->height) + 0.5), 10);
       *subpixel_scale = 1;
     }
   else
