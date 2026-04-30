@@ -2158,7 +2158,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
 {
   GdkSurface *event_surface = NULL;
   gboolean unlink_event = FALSE;
-  GdkDeviceGrabInfo *button_release_grab;
   GdkPointerSurfaceInfo *pointer_info = NULL;
   GdkDevice *device;
   GdkEventType type;
@@ -2193,43 +2192,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
     _gdk_display_set_surface_under_pointer (display, device, event_surface);
   else if (type == GDK_LEAVE_NOTIFY)
     _gdk_display_set_surface_under_pointer (display, device, NULL);
-
-  if (type == GDK_BUTTON_PRESS)
-    {
-      GdkSurface *grab_surface;
-      gboolean owner_events;
-
-      if (!gdk_device_grab_info (display, device, &grab_surface, &owner_events))
-        {
-          _gdk_display_add_device_grab (display,
-                                        device,
-                                        event_surface,
-                                        FALSE,
-                                        serial,
-                                        TRUE);
-          _gdk_display_device_grab_update (display, device, serial);
-        }
-    }
-  else if (type == GDK_BUTTON_RELEASE ||
-           type == GDK_TOUCH_CANCEL ||
-           type == GDK_TOUCH_END)
-    {
-      if (type == GDK_BUTTON_RELEASE ||
-          gdk_event_get_pointer_emulated (event))
-        {
-          button_release_grab =
-            _gdk_display_has_device_grab (display, device, serial);
-
-          if (button_release_grab &&
-              button_release_grab->implicit &&
-              (gdk_event_get_modifier_state (event) & GDK_ANY_BUTTON_MASK & ~(GDK_BUTTON1_MASK << (gdk_button_event_get_button (event) - 1))) == 0)
-            {
-              button_release_grab->serial_end = serial;
-              button_release_grab->implicit_ungrab = FALSE;
-              _gdk_display_device_grab_update (display, device, serial);
-            }
-        }
-    }
 
  out:
   if (unlink_event)
