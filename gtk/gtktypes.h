@@ -45,6 +45,7 @@ typedef struct _GtkBuilderScope        GtkBuilderScope;
  */
 typedef struct _GtkCssStyleChange      GtkCssStyleChange;
 typedef struct _GtkEventController     GtkEventController;
+typedef struct _GtkFeedbackProvider    GtkFeedbackProvider;
 typedef struct _GtkGesture             GtkGesture;
 typedef struct _GtkLayoutManager       GtkLayoutManager;
 typedef struct _GtkListItem            GtkListItem;

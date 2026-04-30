@@ -74,6 +74,7 @@
 #include "gtkgestureclick.h"
 #include "gtkeventcontrollerkey.h"
 #include "gtkbinlayout.h"
+#include "feedback/gtkfeedbackprovider.h"
 #include "gtkimage.h"
 #include "gtklabel.h"
 #include "gtkmarshalers.h"
@@ -804,7 +805,12 @@ gtk_button_do_release (GtkButton *button,
         return;
 
       if (emit_clicked)
-        g_signal_emit (button, button_signals[CLICKED], 0);
+        {
+          GtkFeedbackProvider *feedback = gtk_widget_get_feedback_provider ((GtkWidget *)button);
+          gtk_feedback_provider_feedback (feedback, NULL /* todo */, GTK_FEEDBACK_CLICK);
+
+          g_signal_emit (button, button_signals[CLICKED], 0);
+        }
     }
 }
 

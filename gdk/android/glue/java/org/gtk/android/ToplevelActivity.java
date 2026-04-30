@@ -190,6 +190,10 @@ public class ToplevelActivity extends Activity {
 				runOnUiThread(() -> cancelDragAndDrop());
 			}
 
+			public void queueSoundEffect(int effect_id) {
+				runOnUiThread(() -> this.playSoundEffect(effect_id));
+			}
+
 			public void setActiveImContext(ImContext context) {
 				if (activeImContext == context)
 					return;

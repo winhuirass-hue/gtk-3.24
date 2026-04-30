@@ -69,6 +69,7 @@
 #include "gtkwindow.h"
 
 #include "deprecated/gtkrender.h"
+#include "feedback/gtkfeedbackprovider.h"
 #include "a11y/gtkatspipangoprivate.h"
 
 #include <string.h>
@@ -5057,6 +5058,7 @@ gtk_text_handle_dragged (GtkTextHandle *handle,
 
   if (tmp_pos != *old_pos)
     {
+      GtkFeedbackProvider *feedback = gtk_widget_get_feedback_provider ((GtkWidget *)self);
       *old_pos = tmp_pos;
 
       if (handle == priv->text_handles[TEXT_HANDLE_CURSOR] &&
@@ -5064,6 +5066,8 @@ gtk_text_handle_dragged (GtkTextHandle *handle,
         gtk_text_set_positions (self, cursor_pos, cursor_pos);
       else
         gtk_text_set_positions (self, cursor_pos, selection_bound_pos);
+
+      gtk_feedback_provider_feedback (feedback, NULL /* todo */, GTK_FEEDBACK_TEXTHANDLE_MOVED);
 
       if (handle == priv->text_handles[TEXT_HANDLE_CURSOR])
         priv->cursor_handle_dragged = TRUE;

@@ -1,6 +1,7 @@
 subdir('a11y')
 subdir('deprecated')
 subdir('inspector')
+subdir('feedback')
 subdir('media')
 subdir('print')
 
@@ -906,6 +907,7 @@ gtk_sources += [
   gtk_dbus_src,
   gtk_deprecated_sources,
   inspector_sources,
+  gtk_feedback_sources,
   media_sources,
   gtkresources,
   gtkmarshalers,
@@ -926,6 +928,7 @@ gtk_deps = [
   fontconfig_dep,
   pixbuf_dep,
   epoxy_dep,
+  gtk_feedback_deps,
   media_deps,
   libm,
   graphene_dep,
@@ -1224,6 +1227,8 @@ if build_gir
     gtk_print_headers,
     gtk_css_public_headers,
     gtk_css_public_sources,
+    gtk_feedback_sources,
+    gtk_feedback_public_headers,
     gtk_svg_enum_h,
     gtk_svg_public_headers,
     gtk_svg_public_sources,

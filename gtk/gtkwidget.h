@@ -718,6 +718,9 @@ void              gtk_widget_class_set_css_name (GtkWidgetClass *widget_class,
 GDK_AVAILABLE_IN_ALL
 const char *      gtk_widget_class_get_css_name (GtkWidgetClass *widget_class);
 
+GDK_AVAILABLE_IN_4_24
+GtkFeedbackProvider *gtk_widget_get_feedback_provider (GtkWidget* widget);
+
 GDK_AVAILABLE_IN_ALL
 guint gtk_widget_add_tick_callback (GtkWidget       *widget,
                                     GtkTickCallback  callback,

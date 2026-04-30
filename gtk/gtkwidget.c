@@ -70,6 +70,7 @@
 #include "gtkwindowprivate.h"
 #include "gtktestatcontextprivate.h"
 
+#include "feedback/gtkfeedbackprovider-private.h"
 #include "inspector/window.h"
 #ifdef HAVE_ACCESSKIT
 #include "a11y/gtkaccesskitcontextprivate.h"
@@ -7895,6 +7896,8 @@ gtk_widget_finalize (GObject *object)
   gtk_css_widget_node_widget_destroyed (GTK_CSS_WIDGET_NODE (priv->cssnode));
   g_object_unref (priv->cssnode);
 
+  g_clear_object (&priv->feedback_provider);
+
   g_clear_object (&priv->context);
   g_clear_object (&priv->at_context);
 
@@ -12079,6 +12082,20 @@ gtk_widget_list_controllers (GtkWidget           *widget,
   *out_n_controllers = controllers->len;
 
   return (GtkEventController **)g_ptr_array_free (controllers, FALSE);
+}
+
+GtkFeedbackProvider *
+gtk_widget_get_feedback_provider (GtkWidget* widget)
+{
+  GtkWidgetPrivate *priv;
+  g_return_val_if_fail (GTK_IS_WIDGET (widget), NULL);
+
+  priv = gtk_widget_get_instance_private (widget);
+  if (priv->feedback_provider)
+    return priv->feedback_provider;
+
+  priv->feedback_provider = gtk_feedback_provider_new (widget);
+  return priv->feedback_provider;
 }
 
 static GskRenderNode *
