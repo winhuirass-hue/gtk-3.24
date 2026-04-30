@@ -47,6 +47,11 @@ struct _GskGpuCachePrivate
   GHashTable *tile_cache;
   GHashTable *pipeline_cache;
 
+  struct {
+    uint64_t lookups;
+    uint64_t hits;
+  } glyph, fill, stroke, tile;
+
   /* Vulkan-specific */
   GHashTable *ycbcr_cache;
 };

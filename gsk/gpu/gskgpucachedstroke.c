@@ -100,12 +100,21 @@ gsk_gpu_cached_stroke_equal (gconstpointer v1,
          gsk_stroke_equal (&stroke1->stroke, &stroke2->stroke);
 }
 
+static void
+gsk_gpu_cached_stroke_print_stats (GskGpuCache *self,
+                                   GString     *string)
+{
+  GskGpuCachePrivate *priv = gsk_gpu_cache_get_private (self);
+
+  g_string_append_printf (string, "hits: %.2f%%", (priv->stroke.hits * 100.0) / priv->stroke.lookups);
+}
+
 static const GskGpuCachedClass GSK_GPU_CACHED_STROKE_CLASS =
 {
   sizeof (GskGpuCachedStroke),
   "Stroke",
   FALSE,
-  gsk_gpu_cached_print_no_stats,
+  gsk_gpu_cached_stroke_print_stats,
   gsk_gpu_cached_stroke_finalize,
   gsk_gpu_cached_stroke_should_collect
 };
@@ -224,8 +233,13 @@ gsk_gpu_cached_stroke_lookup (GskGpuCache           *self,
                                   .fx = fx,
                                   .fy = fy,
                                 });
+
+  priv->stroke.lookups++;
+
   if (cached)
     {
+      priv->stroke.hits++;
+
       gsk_gpu_cached_use ((GskGpuCached *) cached);
 
       graphene_rect_init (out_rect,
