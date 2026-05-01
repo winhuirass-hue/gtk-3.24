@@ -1903,15 +1903,28 @@ gdk_key_event_matches (GdkEvent        *event,
         }
 
       keymap = gdk_display_get_keymap (gdk_event_get_display (event));
-      gdk_keymap_get_cached_entries_for_keyval (keymap, keyval, &keys, &n_keys);
 
+      /* searched base key in level 0, some of fallback layouts lack shifted keys */
+      gdk_keymap_get_cached_entries_for_keyval (keymap, keyval, &keys, &n_keys);
+      for (i = 0; i < n_keys; i++)
+        {
+          if (keys[i].keycode == keycode &&
+              keys[i].level == 0 &&
+              (state & ignored_modifiers & mask) == (modifiers & ignored_modifiers & mask) &&
+              /* Only match for group if it's an accel mod */
+              (keys[i].group == layout ||
+               (!group_mod_is_accel_mod && !keyval_in_group (keymap, keyval, layout))))
+            return GDK_KEY_MATCH_PARTIAL;
+        }
+      /* shifted key in same level */
+      gdk_keymap_get_cached_entries_for_keyval (keymap, key, &keys, &n_keys);
       for (i = 0; i < n_keys; i++)
         {
           if (keys[i].keycode == keycode &&
               keys[i].level == level &&
               /* Only match for group if it's an accel mod */
               (keys[i].group == layout ||
-               (!group_mod_is_accel_mod && !keyval_in_group (keymap, keyval, layout))))
+               (!group_mod_is_accel_mod && !keyval_in_group (keymap, key, layout))))
             return GDK_KEY_MATCH_PARTIAL;
         }
     }

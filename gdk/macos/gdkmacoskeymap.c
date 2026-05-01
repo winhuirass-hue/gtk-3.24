@@ -76,7 +76,7 @@ G_DEFINE_TYPE (GdkMacosKeymap, gdk_macos_keymap, GDK_TYPE_KEYMAP)
 static guint *keyval_array = NULL;
 
 #define NUM_KEYCODES 128
-#define KEYVALS_PER_KEYCODE 4
+#define KEYVALS_PER_KEYCODE 6
 #define GET_KEYVAL(keycode, group, level) \
   (keyval_array[(keycode * KEYVALS_PER_KEYCODE + group * 2 + level)])
 
@@ -270,7 +270,7 @@ gdk_macos_keymap_update (GdkMacosKeymap *self)
   for (i = 0; i < NUM_KEYCODES; i++)
     {
       int j;
-      UInt32 modifiers[] = {0, shiftKey, optionKey, shiftKey | optionKey};
+      UInt32 modifiers[] = {0, shiftKey, optionKey, shiftKey | optionKey, cmdKey, shiftKey | cmdKey };
       UniChar chars[4];
       UniCharCount nChars;
 
@@ -336,13 +336,15 @@ gdk_macos_keymap_update (GdkMacosKeymap *self)
             }
         }
 
-      if (p[3] == p[2])
-        p[3] = 0;
       if (p[1] == p[0])
         p[1] = 0;
-      if (p[0] == p[2] &&
-          p[1] == p[3])
-        p[2] = p[3] = 0;
+      for (j = 3; j < KEYVALS_PER_KEYCODE; j += 2)
+        {
+          if (p[j] == p[j - 1])
+            p[j] = 0;
+          if (p[j] == p[1] && p[j - 1] == p[0])
+            p[j] = p[j-1] = 0;
+        }
     }
 
   for (i = 0; i < G_N_ELEMENTS (modifier_keys); i++)
@@ -350,7 +352,8 @@ gdk_macos_keymap_update (GdkMacosKeymap *self)
       p = keyval_array + modifier_keys[i].keycode * KEYVALS_PER_KEYCODE;
 
       if (p[0] == 0 && p[1] == 0 &&
-          p[2] == 0 && p[3] == 0)
+          p[2] == 0 && p[3] == 0 &&
+          p[4] == 0 && p[5] == 0)
         p[0] = modifier_keys[i].keyval;
     }
 
@@ -359,7 +362,7 @@ gdk_macos_keymap_update (GdkMacosKeymap *self)
       p = keyval_array + function_keys[i].keycode * KEYVALS_PER_KEYCODE;
 
       p[0] = function_keys[i].keyval;
-      p[1] = p[2] = p[3] = 0;
+      p[1] = p[2] = p[3] =  p[4] = p[5] = 0;
     }
 
   for (i = 0; i < G_N_ELEMENTS (known_numeric_keys); i++)
@@ -374,7 +377,7 @@ gdk_macos_keymap_update (GdkMacosKeymap *self)
     {
       p = keyval_array + jis_keys[i].keycode * KEYVALS_PER_KEYCODE;
       p[0] = jis_keys[i].keyval;
-      p[1] = p[2] = p[3] = 0;
+      p[1] = p[2] = p[3] = p[4] = p[5] = 0;
     }
 
   g_signal_emit_by_name (self, "keys-changed");
@@ -477,7 +480,7 @@ gdk_macos_keymap_get_entries_for_keyval (GdkKeymap *keymap,
         continue;
 
       key.keycode = i / KEYVALS_PER_KEYCODE;
-      key.group = (i % KEYVALS_PER_KEYCODE) >= 2;
+      key.group = (i % KEYVALS_PER_KEYCODE) / 2;
       key.level = i % 2;
 
       g_array_append_val (keys, key);
@@ -537,7 +540,7 @@ gdk_macos_keymap_get_entries_for_keycode (GdkKeymap     *keymap,
           GdkKeymapKey key;
 
           key.keycode = hardware_keycode;
-          key.group = i >= 2;
+          key.group = i / 2;
           key.level = i % 2;
 
           g_array_append_val (keys_array, key);
