@@ -470,6 +470,11 @@ test_trigger_nonlatin_accels (void)
                                         tests[i].state);
 
       g_assert_nonnull (event);
+      g_assert_cmpint (gdk_key_event_matches (event,
+                                              tests[i].trigger_keyval,
+                                              tests[i].trigger_modifiers),
+                       ==,
+                       tests[i].expected);
       g_assert_cmpint (gtk_shortcut_trigger_trigger (trigger, event, FALSE),
                        ==,
                        tests[i].expected);
