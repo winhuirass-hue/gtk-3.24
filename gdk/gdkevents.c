@@ -1912,7 +1912,7 @@ gdk_key_event_matches (GdkEvent        *event,
                         GDK_META_MASK)))
         {
           guint lower_key;
-          guint accel_key;
+          guint accel_key G_GNUC_UNUSED;
           GdkModifierType accel_mods;
 
           lower_key = gdk_keyval_to_lower (keyval);
@@ -1924,7 +1924,6 @@ gdk_key_event_matches (GdkEvent        *event,
             {
               gboolean matched_keycode = FALSE;
 
-              (void) accel_key;
               gdk_keymap_get_cached_entries_for_keyval (keymap, lower_key, &keys, &n_keys);
 
               for (i = 0; i < n_keys; i++)
