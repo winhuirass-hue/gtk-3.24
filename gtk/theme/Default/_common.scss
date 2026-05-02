@@ -1520,6 +1520,19 @@ windowcontrols {
   }
 }
 
+windowcontrols.win32 {
+  border-spacing: 0;
+
+  > button {
+    min-width: 45px;
+    padding: 0;
+  }
+
+  > button.close:hover {
+    background: rgb(232, 17, 35);
+    color: white;
+  }
+}
 
 /***************
  * Header bars *

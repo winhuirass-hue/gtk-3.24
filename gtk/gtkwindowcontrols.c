@@ -31,6 +31,7 @@
 #include "gtkprivate.h"
 #include "gtktypebuiltins.h"
 #include "gtkwindowprivate.h"
+#include "gtklabel.h"
 
 #ifdef GDK_WINDOWING_MACOS
 #include "gtkwindowbuttonsquartzprivate.h"
@@ -246,6 +247,31 @@ clear_controls (GtkWindowControls *self)
     }
 }
 
+#ifdef GDK_WINDOWING_WIN32
+static PangoAttrList *
+get_win32_symbol_font_attrs (void)
+{
+  static PangoAttrList *attrs = NULL;
+  PangoAttribute *font_desc_attr;
+  PangoFontDescription *font_desc;
+
+  if (attrs)
+    return attrs;
+
+  /* TODO: Detect Windows 11, use Segoe Fluent Icons instead */
+
+  font_desc = pango_font_description_new ();
+  pango_font_description_set_family_static (font_desc, "Segoe MDL2 Assets");
+
+  attrs = pango_attr_list_new ();
+  font_desc_attr = pango_attr_font_desc_new (font_desc);
+  pango_attr_list_insert (attrs, font_desc_attr);
+  pango_font_description_free (font_desc);
+
+  return attrs;
+}
+#endif /* GDK_WINDOWING_WIN32 */
+
 static void
 update_window_buttons (GtkWindowControls *self)
 {
@@ -346,6 +372,7 @@ update_window_buttons (GtkWindowControls *self)
         {
           button = gtk_button_new ();
           gtk_widget_add_css_class (button, "minimize");
+#ifndef GDK_WINDOWING_WIN32
           /* The icon is not relevant for accessibility purposes */
           image = g_object_new (GTK_TYPE_IMAGE,
                                 "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
@@ -354,6 +381,13 @@ update_window_buttons (GtkWindowControls *self)
                                 "halign", GTK_ALIGN_CENTER,
                                 NULL);
           g_object_set (image, "use-fallback", TRUE, NULL);
+#else
+          image = g_object_new (GTK_TYPE_LABEL,
+                                "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
+                                "label", "\uE921",
+                                "attributes", get_win32_symbol_font_attrs(),
+                                NULL);
+#endif
           gtk_button_set_child (GTK_BUTTON (button), image);
           gtk_widget_set_can_focus (button, FALSE);
           gtk_actionable_set_action_name (GTK_ACTIONABLE (button),
@@ -370,9 +404,10 @@ update_window_buttons (GtkWindowControls *self)
         {
           const char *icon_name;
 
-          icon_name = maximized ? "window-restore-symbolic" : "window-maximize-symbolic";
           button = gtk_button_new ();
           gtk_widget_add_css_class (button, "maximize");
+#ifndef GDK_WINDOWING_WIN32
+          icon_name = maximized ? "window-restore-symbolic" : "window-maximize-symbolic";
           /* The icon is not relevant for accessibility purposes */
           image = g_object_new (GTK_TYPE_IMAGE,
                                 "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
@@ -381,6 +416,13 @@ update_window_buttons (GtkWindowControls *self)
                                 "halign", GTK_ALIGN_CENTER,
                                 NULL);
           g_object_set (image, "use-fallback", TRUE, NULL);
+#else
+          image = g_object_new (GTK_TYPE_LABEL,
+                                "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
+                                "label", maximized ? "\uE923" : "\uE922",
+                                "attributes", get_win32_symbol_font_attrs(),
+                                NULL);
+#endif
           gtk_button_set_child (GTK_BUTTON (button), image);
           gtk_widget_set_can_focus (button, FALSE);
           gtk_actionable_set_action_name (GTK_ACTIONABLE (button),
@@ -395,6 +437,7 @@ update_window_buttons (GtkWindowControls *self)
                deletable)
         {
           button = gtk_button_new ();
+#ifndef GDK_WINDOWING_WIN32
           /* The icon is not relevant for accessibility purposes */
           image = g_object_new (GTK_TYPE_IMAGE,
                                 "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
@@ -403,6 +446,13 @@ update_window_buttons (GtkWindowControls *self)
                                 "halign", GTK_ALIGN_CENTER,
                                 "use-fallback", TRUE,
                                 NULL);
+#else
+          image = g_object_new (GTK_TYPE_LABEL,
+                                "accessible-role", GTK_ACCESSIBLE_ROLE_PRESENTATION,
+                                "label", "\uE8BB",
+                                "attributes", get_win32_symbol_font_attrs(),
+                                NULL);
+#endif
           gtk_widget_add_css_class (button, "close");
           gtk_button_set_child (GTK_BUTTON (button), image);
           gtk_widget_set_can_focus (button, FALSE);
@@ -642,6 +692,9 @@ gtk_window_controls_init (GtkWindowControls *self)
 
   gtk_widget_add_css_class (GTK_WIDGET (self), "empty");
   gtk_widget_add_css_class (GTK_WIDGET (self), "start");
+#ifdef GDK_WINDOWING_WIN32
+  gtk_widget_add_css_class (GTK_WIDGET (self), "win32");
+#endif
 
   gtk_widget_set_can_focus (GTK_WIDGET (self), FALSE);
 }
