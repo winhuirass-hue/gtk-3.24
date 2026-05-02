@@ -239,15 +239,19 @@ gsk_transform_node_render_opacity (GskRenderNode  *node,
   if (!gsk_rect_is_empty (&data->opaque))
     {
       GskTransform *inverse;
+      graphene_rect_t transformed;
 
       inverse = gsk_transform_invert (gsk_transform_ref (self->transform));
       if (inverse == NULL)
         return;
 
-      gsk_transform_transform_bounds (inverse, &data->opaque, &data->opaque);
+      if (!gsk_transform_transform_bounds (inverse, &data->opaque, &transformed))
+        return;
+
+      data->opaque = transformed;
+
       gsk_transform_unref (inverse);
     }
-
 
   gsk_render_node_render_opacity (self->child, data);
 
@@ -325,9 +329,7 @@ gsk_transform_node_new (GskRenderNode *child,
   self->child = gsk_render_node_ref (child);
   self->transform = gsk_transform_ref (transform);
 
-  gsk_transform_transform_bounds (self->transform,
-                                  &child->bounds,
-                                  &node->bounds);
+  gsk_transform_transform_bounds (self->transform, &child->bounds, &node->bounds);
 
   node->preferred_depth = gsk_render_node_get_preferred_depth (child);
   node->is_hdr = gsk_render_node_is_hdr (child);
