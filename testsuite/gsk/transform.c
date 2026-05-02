@@ -21,6 +21,7 @@
 
 #include <gtk/gtk.h>
 #include "gsk/gsktransformprivate.h"
+#include "gsk/gskrectprivate.h"
 
 #define EPSILON (1.f / 1024 / 32) /* 2^-15 */
 
@@ -1215,6 +1216,36 @@ test_invert_singular (void)
   g_assert_true (inverse == NULL);
 }
 
+static void
+test_bounds_invalid (void)
+{
+  graphene_matrix_t m;
+  GskTransform *t;
+  graphene_rect_t out;
+
+  graphene_matrix_init_from_float (&m, (float[]) {
+                                     -1.00432e-14, -1.69845e-14, 4.5673e-18, -2.85241e-17,
+                                     9.375, 18.75, 4.50182e-20, 0.03125, 5.49912e-17,
+                                     9.32149e-17, -1.44058e-18, -1,
+                                     0, 0, 0, 1
+                                   });
+  t = gsk_transform_translate_3d (gsk_transform_matrix (NULL, &m), &GRAPHENE_POINT3D_INIT (0, 0, 1));
+  gsk_transform_transform_bounds (t, &GRAPHENE_RECT_INIT (0, 0, 32, 29.430248), &out);
+  g_assert_true (gsk_rect_isfinite (&out));
+  g_assert_true (graphene_rect_equal (&out, &GRAPHENE_RECT_INIT(0, 0, 0, 0)));
+}
+
+static void
+test_point_invalid (void)
+{
+  GskTransform *t = gsk_transform_scale (NULL, FLT_MAX / 2, FLT_MAX / 2);
+  graphene_point_t out;
+
+  gsk_transform_transform_point (t, &GRAPHENE_POINT_INIT (10, 10), &out);
+  g_assert_true (isfinite (out.x) && isfinite (out.y));
+  g_assert_true (graphene_point_equal (&out, &GRAPHENE_POINT_INIT(0, 0)));
+}
+
 int
 main (int   argc,
       char *argv[])
@@ -1246,6 +1277,8 @@ main (int   argc,
   g_test_add_func ("/transform/dihedral-matrix", test_dihedral_matrix);
   g_test_add_func ("/transform/fine-category", test_fine_category);
   g_test_add_func ("/transform/invert-singular", test_invert_singular);
+  g_test_add_func ("/transform/bounds-invalid", test_bounds_invalid);
+  g_test_add_func ("/transform/point-invalid", test_point_invalid);
 
   return g_test_run ();
 }
