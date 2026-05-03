@@ -14,6 +14,7 @@ if gtk_a11y_backends.contains('atspi')
   gtk_a11y_src += files([
     'gtkatspiaction.c',
     'gtkatspicache.c',
+    'gtkatspicollection.c',
     'gtkatspicomponent.c',
     'gtkatspicontext.c',
     'gtkatspieditabletext.c',

@@ -18,6 +18,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "a11y/gtkatspicollectionprivate.h"
 #include "config.h"
 
 #include "gtkatspicontextprivate.h"
@@ -39,6 +40,7 @@
 #include "gtkatspihyperlinkprivate.h"
 #include "a11y/atspi/atspi-accessible.h"
 #include "a11y/atspi/atspi-action.h"
+#include "a11y/atspi/atspi-collection.h"
 #include "a11y/atspi/atspi-editabletext.h"
 #include "a11y/atspi/atspi-text.h"
 #include "a11y/atspi/atspi-value.h"
@@ -75,7 +77,7 @@
  * Each context implements a number of Atspi interfaces on a D-Bus
  * object. The context objects are connected into a tree by the
  * Parent property and GetChildAtIndex method of the Accessible
- * interface.
+ * interface, and the Collection interface.
  *
  * The tree is an almost perfect mirror image of the widget tree,
  * with a few notable exceptions:
@@ -137,16 +139,13 @@ unset_atspi_state (guint64        *states,
   *states &= ~(G_GUINT64_CONSTANT (1) << state);
 }
 
-static void
-collect_states (GtkAtSpiContext    *self,
-                GVariantBuilder *builder)
+uint64_t
+gtk_at_spi_context_get_states_as_u64 (GtkAtSpiContext *self)
 {
   GtkATContext *ctx = GTK_AT_CONTEXT (self);
-  GtkAccessibleValue *value;
-  GtkAccessible *accessible;
+  GtkAccessible *accessible = gtk_at_context_get_accessible (ctx);
   guint64 states = 0;
-
-  accessible = gtk_at_context_get_accessible (ctx);
+  GtkAccessibleValue *value;
 
   set_atspi_state (&states, ATSPI_STATE_VISIBLE);
   set_atspi_state (&states, ATSPI_STATE_SHOWING);
@@ -325,9 +324,18 @@ collect_states (GtkAtSpiContext    *self,
         set_atspi_state (&states, ATSPI_STATE_SUPPORTS_AUTOCOMPLETION);
     }
 
+  return states;
+}
+
+static void
+collect_states (GtkAtSpiContext    *self,
+                GVariantBuilder *builder)
+{
+  uint64_t states = gtk_at_spi_context_get_states_as_u64 (self);
   g_variant_builder_add (builder, "u", (guint32) (states & 0xffffffff));
   g_variant_builder_add (builder, "u", (guint32) (states >> 32));
 }
+
 /* }}} */
 /* {{{ Relation handling */
 static void
@@ -1497,6 +1505,21 @@ gtk_at_spi_context_register_object (GtkAtSpiContext *self)
         g_dbus_connection_register_object (self->connection,
                                            self->context_path,
                                            (GDBusInterfaceInfo *) &atspi_hyperlink_interface,
+                                           vtable,
+                                           self,
+                                           NULL,
+                                           NULL);
+      self->n_registered_objects++;
+    }
+
+  vtable = gtk_atspi_get_collection_vtable (accessible);
+  if (vtable)
+    {
+      g_variant_builder_add (&interfaces, "s", atspi_collection_interface.name);
+      self->registration_ids[self->n_registered_objects] =
+        g_dbus_connection_register_object (self->connection,
+                                           self->context_path,
+                                           (GDBusInterfaceInfo *) &atspi_collection_interface,
                                            vtable,
                                            self,
                                            NULL,
