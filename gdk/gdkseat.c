@@ -250,26 +250,31 @@ gdk_seat_grab (GdkSeat    *seat,
  * See [method@Gdk.Seat.grab] for more information.
  */
 void
-gdk_seat_ungrab (GdkSeat *seat)
+gdk_seat_ungrab (GdkSeat    *seat,
+                 GdkSurface *surface)
 {
   GdkSeatPrivate *priv = gdk_seat_get_instance_private (seat);
   GdkSeatClass *seat_class;
-  GdkSurface *grab_surface;
+  GList *elem;
 
   g_return_if_fail (GDK_IS_SEAT (seat));
 
   seat_class = GDK_SEAT_GET_CLASS (seat);
   seat_class->ungrab (seat);
 
-  if (!priv->grabs)
+  elem = g_list_find (priv->grabs, surface);
+
+  if (!elem)
     {
       g_warning ("Unpaired ungrab call");
       return;
     }
 
-  grab_surface = priv->grabs->data;
-  priv->grabs = g_list_remove (priv->grabs, grab_surface);
-  g_clear_object (&grab_surface);
+  if (priv->grabs != elem)
+    g_warning ("Ungrabbing non topmost surface");
+
+  priv->grabs = g_list_delete_link (priv->grabs, elem);
+  g_object_unref (surface);
 }
 
 /**
