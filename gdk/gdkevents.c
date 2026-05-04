@@ -1883,6 +1883,8 @@ gdk_key_event_matches (GdkEvent        *event,
       int i;
       guint key;
 
+      keymap = gdk_display_get_keymap (gdk_event_get_display (event));
+
       /* Shift gets consumed and applied for the event,
        * so apply it to our keyval to match
        */
@@ -1902,7 +1904,42 @@ gdk_key_event_matches (GdkEvent        *event,
           return GDK_KEY_MATCH_EXACT;
         }
 
-      keymap = gdk_display_get_keymap (gdk_event_get_display (event));
+      if ((modifiers & GDK_SHIFT_MASK) &&
+          (modifiers & (GDK_CONTROL_MASK |
+                        GDK_ALT_MASK |
+                        GDK_SUPER_MASK |
+                        GDK_HYPER_MASK |
+                        GDK_META_MASK)))
+        {
+          guint lower_key;
+          guint accel_key G_GNUC_UNUSED;
+          GdkModifierType accel_mods;
+
+          lower_key = gdk_keyval_to_lower (keyval);
+
+          if (gdk_key_event_get_match (event, &accel_key, &accel_mods) &&
+              accel_mods == modifiers &&
+              lower_key >= GDK_KEY_a &&
+              lower_key <= GDK_KEY_z)
+            {
+              gboolean matched_keycode = FALSE;
+
+              gdk_keymap_get_cached_entries_for_keyval (keymap, lower_key, &keys, &n_keys);
+
+              for (i = 0; i < n_keys; i++)
+                {
+                  if (keys[i].keycode == keycode)
+                    {
+                      matched_keycode = TRUE;
+                      break;
+                    }
+                }
+
+              if (matched_keycode)
+                return GDK_KEY_MATCH_EXACT;
+            }
+        }
+
       gdk_keymap_get_cached_entries_for_keyval (keymap, keyval, &keys, &n_keys);
 
       for (i = 0; i < n_keys; i++)

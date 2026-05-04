@@ -32,6 +32,50 @@ key_event_new (GdkEventType      event_type,
   return event;
 }
 
+static GdkEvent *
+key_event_new_for_keyval (GdkSurface       *surface,
+                          GdkDevice        *device,
+                          guint             hardware_keyval,
+                          guint             translated_keyval,
+                          GdkModifierType   state)
+{
+  GdkDisplay *display;
+  GdkKeymapKey *keys;
+  int n_keys;
+  GdkTranslatedKey translated;
+
+  display = gdk_surface_get_display (surface);
+
+  if (!gdk_display_map_keyval (display, hardware_keyval, &keys, &n_keys))
+    return NULL;
+
+  translated.keyval = translated_keyval;
+  translated.consumed = 0;
+  translated.layout = keys[0].group;
+  translated.level = keys[0].level;
+
+  /* Use a level distinct from the latin key mapping for Shift cases,
+   * so the test exercises matching by physical keycode.
+   */
+  if ((state & GDK_SHIFT_MASK) != 0)
+    translated.level = 42;
+
+  GdkEvent *event = key_event_new (GDK_KEY_PRESS,
+                                   surface,
+                                   device,
+                                   device,
+                                   GDK_CURRENT_TIME,
+                                   keys[0].keycode,
+                                   state,
+                                   FALSE,
+                                   &translated,
+                                   &translated);
+
+  g_free (keys);
+
+  return event;
+}
+
 static void
 test_trigger_basic (void)
 {
@@ -367,6 +411,81 @@ test_trigger_trigger (void)
   g_object_unref (trigger[3]);
 }
 
+static void
+test_trigger_nonlatin_accels (void)
+{
+  GdkDisplay *display;
+  GdkSeat *seat;
+  GdkSurface *surface;
+  GdkDevice *device;
+  struct
+  {
+    const char *name;
+    guint hardware_keyval;
+    guint translated_keyval;
+    guint trigger_keyval;
+    GdkModifierType state;
+    GdkModifierType trigger_modifiers;
+    GdkKeyMatch expected;
+  } tests[] = {
+    { "ctrl-c-cyrillic", GDK_KEY_c, GDK_KEY_Cyrillic_es, GDK_KEY_c, GDK_CONTROL_MASK, GDK_CONTROL_MASK, GDK_KEY_MATCH_PARTIAL },
+    { "ctrl-shift-c-cyrillic", GDK_KEY_c, GDK_KEY_Cyrillic_TSE, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-arabic", GDK_KEY_c, GDK_KEY_Arabic_hah, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-hebrew", GDK_KEY_c, 0x10005d1, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-hindi", GDK_KEY_c, 0x1000926, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-sanskrit", GDK_KEY_c, 0x1000936, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-thai", GDK_KEY_c, GDK_KEY_Thai_chochan, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-c-chinese", GDK_KEY_c, 0x1004e2d, GDK_KEY_c, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-v-japanese", GDK_KEY_v, 0x1003042, GDK_KEY_v, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "ctrl-shift-v-korean", GDK_KEY_v, 0x100b098, GDK_KEY_v, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_CONTROL_MASK | GDK_SHIFT_MASK, GDK_KEY_MATCH_EXACT },
+    { "plain-c-cyrillic", GDK_KEY_c, GDK_KEY_Cyrillic_es, GDK_KEY_c, 0, 0, GDK_KEY_MATCH_PARTIAL },
+    { "shift-c-cyrillic", GDK_KEY_c, GDK_KEY_Cyrillic_TSE, GDK_KEY_c, GDK_SHIFT_MASK, GDK_SHIFT_MASK, GDK_KEY_MATCH_NONE },
+  };
+  int i;
+
+  display = gdk_display_get_default ();
+  seat = gdk_display_get_default_seat (display);
+  if (!seat)
+    {
+      g_test_skip ("Display has no seat");
+      return;
+    }
+
+  device = gdk_seat_get_keyboard (seat);
+  surface = gdk_surface_new_toplevel (display);
+
+  for (i = 0; i < G_N_ELEMENTS (tests); i++)
+    {
+      GtkShortcutTrigger *trigger;
+      GdkEvent *event;
+
+      g_test_message ("Checking: %s", tests[i].name);
+
+      trigger = gtk_keyval_trigger_new (tests[i].trigger_keyval,
+                                        tests[i].trigger_modifiers);
+      event = key_event_new_for_keyval (surface,
+                                        device,
+                                        tests[i].hardware_keyval,
+                                        tests[i].translated_keyval,
+                                        tests[i].state);
+
+      g_assert_nonnull (event);
+      g_assert_cmpint (gdk_key_event_matches (event,
+                                              tests[i].trigger_keyval,
+                                              tests[i].trigger_modifiers),
+                       ==,
+                       tests[i].expected);
+      g_assert_cmpint (gtk_shortcut_trigger_trigger (trigger, event, FALSE),
+                       ==,
+                       tests[i].expected);
+
+      gdk_event_unref (event);
+      g_object_unref (trigger);
+    }
+
+  gdk_surface_destroy (surface);
+}
+
 static gboolean
 callback (GtkWidget *widget,
           GVariant  *args,
@@ -452,6 +571,7 @@ main (int argc, char *argv[])
   g_test_add_func ("/shortcuts/trigger/parse/alternative", test_trigger_parse_alternative);
   g_test_add_func ("/shortcuts/trigger/parse/invalid", test_trigger_parse_invalid);
   g_test_add_func ("/shortcuts/trigger/trigger", test_trigger_trigger);
+  g_test_add_func ("/shortcuts/trigger/nonlatin-accels", test_trigger_nonlatin_accels);
   g_test_add_func ("/shortcuts/action/basic", test_action_basic);
   g_test_add_func ("/shortcuts/action/activate", test_action_activate);
   g_test_add_func ("/shortcuts/action/parse", test_action_parse);
