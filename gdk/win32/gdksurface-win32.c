@@ -80,6 +80,14 @@ struct _FullscreenInfo
   LONG  style;
 };
 
+enum
+{
+  SIGNAL_WIN32_HIT_TEST,
+  LAST_SIGNAL
+};
+
+static guint surface_signals[LAST_SIGNAL];
+
 G_DEFINE_TYPE (GdkWin32Surface, gdk_win32_surface, GDK_TYPE_SURFACE)
 
 static void
@@ -2859,6 +2867,25 @@ gdk_win32_surface_compute_size (GdkSurface *surface)
   return FALSE;
 }
 
+static GdkWin32HitTestResult
+gdk_win32_surface_real_win32_hit_test (GdkSurface *surface,
+                                       double      x,
+                                       double      y)
+{
+  return GDK_WIN32_HIT_TEST_NONE;
+}
+
+GdkWin32HitTestResult
+gdk_win32_surface_nchittest (GdkSurface *surface,
+                             double      x,
+                             double      y)
+{
+  GdkWin32HitTestResult res;
+
+  g_signal_emit (surface, surface_signals[SIGNAL_WIN32_HIT_TEST], 0, x, y, &res);
+  return res;
+}
+
 static void
 gdk_win32_surface_class_init (GdkWin32SurfaceClass *klass)
 {
@@ -2868,6 +2895,19 @@ gdk_win32_surface_class_init (GdkWin32SurfaceClass *klass)
   object_class->constructed = gdk_win32_surface_constructed;
   object_class->dispose = gdk_surface_win32_dispose;
   object_class->finalize = gdk_surface_win32_finalize;
+
+  surface_signals[SIGNAL_WIN32_HIT_TEST] =
+      g_signal_new (g_intern_static_string ("win32-hit-test"),
+                    G_TYPE_FROM_CLASS (klass),
+                    G_SIGNAL_RUN_LAST,
+                    G_STRUCT_OFFSET (GdkWin32SurfaceClass, win32_hit_test),
+                    g_signal_accumulator_first_wins, NULL,
+                    NULL,
+                    // FIXME: This should be a proper enum GType
+                    G_TYPE_INT, 2,
+                    G_TYPE_DOUBLE, G_TYPE_DOUBLE);
+
+  klass->win32_hit_test = gdk_win32_surface_real_win32_hit_test;
 
   impl_class->hide = gdk_win32_surface_hide;
   impl_class->get_geometry = gdk_win32_surface_get_geometry;

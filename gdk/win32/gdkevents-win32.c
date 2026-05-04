@@ -1300,13 +1300,10 @@ handle_nchittest (HWND hwnd,
   GdkWin32Surface *impl;
   RECT client_rect;
   POINT client_pt;
+  double x, y;
+  GdkWin32HitTestResult ht_result;
 
   if (surface == NULL)
-    return FALSE;
-
-  /* If the surface has no particular input pass-through region,
-   * then we can simply let DefWindowProc() handle the message */
-  if (surface->input_region == NULL)
     return FALSE;
 
   if (!GetClientRect (hwnd, &client_rect))
@@ -1323,16 +1320,41 @@ handle_nchittest (HWND hwnd,
 
   impl = GDK_WIN32_SURFACE (surface);
 
-  /* If the point lies inside the input region, return HTCLIENT,
-   * otherwise return HTTRANSPARENT. */
-  if (cairo_region_contains_point (surface->input_region,
-                                   client_pt.x / impl->surface_scale,
-                                   client_pt.y / impl->surface_scale))
-    *ret_valp = HTCLIENT;
-  else
-    *ret_valp = HTTRANSPARENT;
+  x = client_pt.x / impl->surface_scale;
+  y = client_pt.y / impl->surface_scale;
 
-  /* We handled the message, no need to call DefWindowProc() */
+  /* If the point lies outside the input region, return HTTRANSPARENT */
+  if (surface->input_region && !cairo_region_contains_point (surface->input_region, x, y))
+    {
+      *ret_valp = HTTRANSPARENT;
+      return TRUE;
+    }
+
+  ht_result = gdk_win32_surface_nchittest (surface, x, y);
+  switch (ht_result)
+    {
+    case GDK_WIN32_HIT_TEST_NONE:
+      *ret_valp = HTCLIENT;
+      break;
+    case GDK_WIN32_HIT_TEST_CAPTION:
+      *ret_valp = HTCAPTION;
+      break;
+    case GDK_WIN32_HIT_TEST_MIN_BUTTON:
+      *ret_valp = HTMINBUTTON;
+      break;
+    case GDK_WIN32_HIT_TEST_MAX_BUTTON:
+      *ret_valp = HTMAXBUTTON;
+      break;
+    case GDK_WIN32_HIT_TEST_CLOSE_BUTTON:
+      *ret_valp = HTCLOSE;
+      break;
+    case GDK_WIN32_HIT_TEST_ICON:
+      *ret_valp = HTSYSMENU;
+      break;
+    default:
+      g_assert_not_reached ();
+    }
+
   return TRUE;
 }
 
@@ -1382,6 +1404,7 @@ generate_button_event (GdkEventType  type,
   GdkEvent *event;
   GdkDeviceManagerWin32 *device_manager;
   GdkWin32Surface *impl = GDK_WIN32_SURFACE (surface);
+  POINT pt;
   double x, y;
 
   if (GDK_WIN32_DISPLAY (gdk_surface_get_display (surface))->pointer_device_items->input_ignore_core > 0)
@@ -1389,8 +1412,30 @@ generate_button_event (GdkEventType  type,
 
   device_manager = GDK_DEVICE_MANAGER_WIN32 (GDK_WIN32_DISPLAY (gdk_surface_get_display (surface))->device_manager);
 
-  x = (double) GET_X_LPARAM (msg->lParam) / impl->surface_scale;
-  y = (double) GET_Y_LPARAM (msg->lParam) / impl->surface_scale;
+  switch (msg->message)
+    {
+    case WM_NCLBUTTONDOWN:
+    case WM_NCMBUTTONDOWN:
+    case WM_NCRBUTTONDOWN:
+    case WM_NCXBUTTONDOWN:
+    case WM_NCLBUTTONUP:
+    case WM_NCMBUTTONUP:
+    case WM_NCRBUTTONUP:
+    case WM_NCXBUTTONUP:
+      /* These carry screen-relative coordinates; we could use either
+       * msg->pt or extract them from lParam.
+       */
+      pt = msg->pt;
+      ScreenToClient (GDK_SURFACE_HWND (surface), &pt);
+      x = (double) pt.x / impl->surface_scale;
+      y = (double) pt.y / impl->surface_scale;
+      break;
+    default:
+      /* These carry window-relative coordinates */
+      x = (double) GET_X_LPARAM (msg->lParam) / impl->surface_scale;
+      y = (double) GET_Y_LPARAM (msg->lParam) / impl->surface_scale;
+      break;
+    }
 
   _gdk_device_virtual_set_active (GDK_WIN32_DISPLAY (gdk_surface_get_display (surface))->device_manager->core_pointer,
                                   GDK_WIN32_DISPLAY (gdk_surface_get_display (surface))->device_manager->system_pointer);
@@ -2023,18 +2068,22 @@ gdk_event_translate (MSG *msg,
       break;
 
     case WM_LBUTTONDOWN:
+    case WM_NCLBUTTONDOWN:
       button = 1;
       goto buttondown0;
 
     case WM_MBUTTONDOWN:
+    case WM_NCMBUTTONDOWN:
       button = 2;
       goto buttondown0;
 
     case WM_RBUTTONDOWN:
+    case WM_NCRBUTTONDOWN:
       button = 3;
       goto buttondown0;
 
     case WM_XBUTTONDOWN:
+    case WM_NCXBUTTONDOWN:
       if (HIWORD (msg->wParam) == XBUTTON1)
 	button = 4;
       else
@@ -2060,23 +2109,30 @@ gdk_event_translate (MSG *msg,
       generate_button_event (GDK_BUTTON_PRESS, button,
 			     surface, msg);
 
-      *ret_valp = (msg->message == WM_XBUTTONDOWN ? TRUE : 0);
+      if (msg->message == WM_XBUTTONDOWN || msg->message == WM_NCXBUTTONDOWN)
+        *ret_valp = TRUE;
+      else
+        *ret_valp = 0;
       return_val = TRUE;
       break;
 
     case WM_LBUTTONUP:
+    case WM_NCLBUTTONUP:
       button = 1;
       goto buttonup0;
 
     case WM_MBUTTONUP:
+    case WM_NCMBUTTONUP:
       button = 2;
       goto buttonup0;
 
     case WM_RBUTTONUP:
+    case WM_NCRBUTTONUP:
       button = 3;
       goto buttonup0;
 
     case WM_XBUTTONUP:
+    case WM_NCXBUTTONUP:
       if (HIWORD (msg->wParam) == XBUTTON1)
 	button = 4;
       else
@@ -2150,6 +2206,7 @@ gdk_event_translate (MSG *msg,
     }
 
     case WM_MOUSEMOVE:
+    case WM_NCMOUSEMOVE:
       GDK_NOTE (EVENTS,
 		g_print (" %p (%d,%d)",
 			 (gpointer) msg->wParam,
@@ -2220,8 +2277,19 @@ gdk_event_translate (MSG *msg,
         gdk_win32_surface_do_move_resize_drag (surface, msg->pt.x, msg->pt.y);
       else if (GDK_WIN32_DISPLAY (gdk_surface_get_display (surface))->pointer_device_items->input_ignore_core == 0)
 	{
-          double x = (double) GET_X_LPARAM (msg->lParam) / impl->surface_scale;
-          double y = (double) GET_Y_LPARAM (msg->lParam) / impl->surface_scale;
+	  double x, y;
+	  if (msg->message == WM_NCMOUSEMOVE)
+	    {
+              POINT client_pt = msg->pt;
+              ScreenToClient (GDK_SURFACE_HWND (surface), &client_pt);
+              x = (double) client_pt.x / impl->surface_scale;
+              y = (double) client_pt.y / impl->surface_scale;
+	    }
+	  else
+	    {
+              x = (double) GET_X_LPARAM (msg->lParam) / impl->surface_scale;
+              y = (double) GET_Y_LPARAM (msg->lParam) / impl->surface_scale;
+            }
 
           _gdk_device_virtual_set_active (win32_display->device_manager->core_pointer,
                                           win32_display->device_manager->system_pointer);
@@ -2241,13 +2309,8 @@ gdk_event_translate (MSG *msg,
       return_val = TRUE;
       break;
 
-    case WM_NCMOUSEMOVE:
-      GDK_NOTE (EVENTS,
-		g_print (" (%d,%d)",
-			 GET_X_LPARAM (msg->lParam), GET_Y_LPARAM (msg->lParam)));
-      break;
-
     case WM_MOUSELEAVE:
+    case WM_NCMOUSELEAVE:
       GDK_NOTE (EVENTS, g_print (" %d (%ld,%ld)",
 				 HIWORD (msg->wParam), msg->pt.x, msg->pt.y));
 
@@ -2293,6 +2356,7 @@ gdk_event_translate (MSG *msg,
       break;
 
     case WM_POINTERDOWN:
+    case WM_NCPOINTERDOWN:
       if (win32_display->tablet_input_api != GDK_WIN32_TABLET_INPUT_API_WINPOINTER ||
           gdk_winpointer_should_forward_message (win32_display->device_manager, msg))
         {
@@ -2323,6 +2387,7 @@ gdk_event_translate (MSG *msg,
       break;
 
     case WM_POINTERUP:
+    case WM_NCPOINTERUP:
       if (win32_display->tablet_input_api != GDK_WIN32_TABLET_INPUT_API_WINPOINTER ||
           gdk_winpointer_should_forward_message (win32_display->device_manager, msg))
         {
