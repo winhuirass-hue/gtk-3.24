@@ -943,6 +943,7 @@ capture_widget_key_handled (GtkEventControllerKey *controller,
       if (was_empty && entry->content_changed && !entry->search_stopped)
         g_signal_emit (entry, signals[SEARCH_STARTED], 0);
 
+      gtk_widget_grab_focus (GTK_WIDGET (entry));
       return GDK_EVENT_STOP;
     }
 

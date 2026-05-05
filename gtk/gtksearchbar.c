@@ -546,9 +546,6 @@ capture_widget_key_handled (GtkEventControllerKey *controller,
   if (!gtk_widget_get_mapped (GTK_WIDGET (bar)))
     return GDK_EVENT_PROPAGATE;
 
-  if (bar->reveal_child)
-    return GDK_EVENT_PROPAGATE;
-
   if (bar->entry == NULL)
     {
       g_warning ("The search bar does not have an entry connected to it. Call gtk_search_bar_connect_entry() to connect one.");
