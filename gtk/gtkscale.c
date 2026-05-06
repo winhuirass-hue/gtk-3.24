@@ -682,8 +682,6 @@ gtk_scale_class_init (GtkScaleClass *class)
 
   widget_class->size_allocate = gtk_scale_size_allocate;
   widget_class->measure = gtk_scale_measure;
-  widget_class->grab_focus = gtk_widget_grab_focus_self;
-  widget_class->focus = gtk_widget_focus_self;
 
   range_class->get_range_border = gtk_scale_get_range_border;
   range_class->value_changed = gtk_scale_value_changed;

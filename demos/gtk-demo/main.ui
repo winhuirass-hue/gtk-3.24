@@ -31,7 +31,7 @@
           </object>
         </child>
         <child type="start">
-          <object class="GtkToggleButton">
+          <object class="GtkToggleButton" id="search_button">
             <property name="child">
               <object class="GtkImage">
                 <property name="paintable">
@@ -197,5 +197,6 @@
         </child>
       </object>
     </property>
+    <property name="focus-widget">search_button</property>
   </object>
 </interface>
