@@ -129,3 +129,45 @@ gtk_list_item_base_get_selected (GtkListItemBase *self)
   return priv->selected;
 }
 
+/**
+ * gtk_list_item_base_force_rebind:
+ * @self: a `GtkListItemBase`
+ *
+ * Forces a rebind cycle on the list item widget. This is done by
+ * first updating the widget with a %NULL item (triggering unbind)
+ * and then updating it again with the actual item (triggering bind).
+ *
+ * This is useful when the underlying data of the model item has
+ * changed but the item GObject itself remains the same, and the
+ * factory's bind callback needs to be re-run to reflect the new data.
+ */
+void
+gtk_list_item_base_force_rebind (GtkListItemBase *self)
+{
+  GtkListItemBasePrivate *priv;
+  guint position;
+  gpointer item;
+  gboolean selected;
+
+  g_return_if_fail (GTK_IS_LIST_ITEM_BASE (self));
+
+  priv = gtk_list_item_base_get_instance_private (self);
+
+  /* If no item is currently set, there's nothing to rebind */
+  if (priv->item == NULL)
+    return;
+
+  position = priv->position;
+  item = priv->item;
+  selected = priv->selected;
+
+  /* Step 1: Set item to NULL — this triggers the unbind signal
+   * in the factory because the item changes from non-NULL to NULL.
+   */
+  GTK_LIST_ITEM_BASE_GET_CLASS (self)->update (self, position, NULL, selected);
+
+  /* Step 2: Restore the actual item — this triggers the bind signal
+   * in the factory because the item changes from NULL to non-NULL.
+   */
+  GTK_LIST_ITEM_BASE_GET_CLASS (self)->update (self, position, item, selected);
+}

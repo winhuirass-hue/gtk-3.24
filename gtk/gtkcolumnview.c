@@ -2262,3 +2262,79 @@ gtk_column_view_scroll_to (GtkColumnView       *self,
   else
     g_clear_pointer (&scroll, gtk_scroll_info_unref);
 }
+
+/**
+ * gtk_column_view_refresh_rows:
+ * @self: a `GtkColumnView`
+ * @position: the position of the first row to refresh
+ * @n_items: the number of rows to refresh, -1 for all rows after position
+ *
+ * Causes the row widgets for the given range to be unbound and rebound.
+ *
+ * This is useful when the underlying data of model items has changed
+ * but the item GObject instances themselves remain the same. Normally,
+ * the factory's bind callback is only invoked when the item GObject
+ * changes, so updating the same GObject's properties would not trigger
+ * a rebind. This function forces a full unbind→bind cycle for the
+ * specified rows, causing the factory's "unbind" and "bind" signals
+ * to be emitted for each affected row and its cells.
+ *
+ * Only rows that are currently bound (i.e., have an active widget)
+ * will be affected. Rows that are not currently visible or that do
+ * not have a widget will be silently skipped.
+ *
+ * Since: 4.24
+ */
+void
+gtk_column_view_refresh_rows (GtkColumnView *self,
+                              guint          position,
+                              gint           n_items)
+{
+  GtkListItemManager *manager;
+  GtkListTile *tile;
+  guint offset;
+  guint i;
+  guint n_items_in_model;
+
+  g_return_if_fail (GTK_IS_COLUMN_VIEW (self));
+
+  n_items_in_model = gtk_list_base_get_n_items (GTK_LIST_BASE (self->listview));
+  if (position >= n_items_in_model)
+    return;
+
+  /* Clamp n_items to the model size */
+  if (n_items < 0)
+    n_items = n_items_in_model - position;
+
+  manager = self->listview->item_manager;
+
+  /* Walk through the tile range for the specified positions.
+   * We use gtk_list_item_manager_get_nth() to find the tile for
+   * each position, then force a rebind on its widget if present.
+   */
+  for (i = 0; i < n_items; i++)
+    {
+      guint pos = position + i;
+
+      tile = gtk_list_item_manager_get_nth (manager, pos, &offset);
+      if (tile == NULL)
+        continue;
+
+      /* If the tile covers the position but has an offset > 0,
+       * it means the tile represents multiple items and our
+       * target position is in the middle. In that case, the
+       * widget is not tracking this specific position, so skip.
+       * Only tiles with offset == 0 have widgets bound to the
+       * exact position.
+       */
+      if (offset != 0)
+        continue;
+
+      /* Only ITEM tiles with a widget are relevant */
+      if (tile->type != GTK_LIST_TILE_ITEM || tile->widget == NULL)
+        continue;
+
+      /* Force a rebind cycle: first unbind (item→NULL), then bind (NULL→item) */
+      gtk_list_item_base_force_rebind (GTK_LIST_ITEM_BASE (tile->widget));
+    }
+}
