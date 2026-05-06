@@ -2086,4 +2086,24 @@ typedef enum {
   GTK_REDUCED_MOTION_REDUCE,
 } GtkReducedMotion;
 
+/**
+ * GtkFocusType:
+ * @GTK_FOCUS_TYPE_DEFAULT: Accept focus on the widget and pass it
+ *   on to child widgets
+ * @GTK_FOCUS_TYPE_SELF: Accept focus on the widget, but don't pass
+ *   it to child widgets
+ * @GTK_FOCUS_TYPE_CHILD: Don't accept focus on the widget, but pass
+ *   it to child widgets
+ *
+ * Focus types that can be set on a widget class with
+ * [method@Gtk.WidgetClass.set_focus_type].
+ *
+ * Since: 4.24
+ */
+typedef enum {
+  GTK_FOCUS_TYPE_DEFAULT,
+  GTK_FOCUS_TYPE_SELF,
+  GTK_FOCUS_TYPE_CHILD,
+} GtkFocusType;
+
 G_END_DECLS

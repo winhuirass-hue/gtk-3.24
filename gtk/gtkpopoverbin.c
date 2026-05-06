@@ -315,8 +315,6 @@ gtk_popover_bin_class_init (GtkPopoverBinClass *klass)
   gobject_class->get_property = gtk_popover_bin_get_property;
   gobject_class->dispose = gtk_popover_bin_dispose;
 
-  widget_class->focus = gtk_widget_focus_child;
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
   widget_class->compute_expand = gtk_popover_bin_compute_expand;
 
   /**
@@ -379,6 +377,7 @@ gtk_popover_bin_class_init (GtkPopoverBinClass *klass)
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BIN_LAYOUT);
 
   gtk_widget_class_set_css_name (widget_class, "popoverbin");
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static void

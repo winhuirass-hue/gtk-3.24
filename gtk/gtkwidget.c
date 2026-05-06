@@ -13609,3 +13609,68 @@ gtk_widget_get_limit_events (GtkWidget *widget)
 
   return priv->limit_events;
 }
+
+/**
+ * gtk_widget_class_set_focus_type:
+ * @widget_class: the widget class
+ * @focus_type: the focus type to use
+ *
+ * Sets the focus type used by the given widget class.
+ *
+ * This is a convenience method to set up the @focus and
+ * @grab_focus vfuncs at class initialization time.
+ *
+ * Since: 4.24
+ */
+void
+gtk_widget_class_set_focus_type (GtkWidgetClass *widget_class,
+                                 GtkFocusType    focus_type)
+{
+  GtkWidgetClassPrivate *priv = widget_class->priv;
+
+  g_return_if_fail (GTK_IS_WIDGET_CLASS (widget_class));
+  g_return_if_fail (widget_class->grab_focus == gtk_widget_grab_focus_self);
+  g_return_if_fail (widget_class->focus == gtk_widget_real_focus);
+
+  priv->focus_type = focus_type;
+
+  switch (focus_type)
+    {
+    case GTK_FOCUS_TYPE_DEFAULT:
+      break;
+
+    case GTK_FOCUS_TYPE_SELF:
+      widget_class->grab_focus = gtk_widget_grab_focus_self;
+      widget_class->focus = gtk_widget_focus_self;
+      break;
+
+    case GTK_FOCUS_TYPE_CHILD:
+      widget_class->grab_focus = gtk_widget_grab_focus_child;
+      widget_class->focus = gtk_widget_focus_child;
+      break;
+
+    default:
+      g_assert_not_reached ();
+    }
+}
+
+/**
+ * gtk_widget_class_get_focus_type:
+ * @widget_class: the widget class
+ *
+ * Returns the focus type that has been set with
+ * [method@Gtk.WidgetClass.set_focus_type].
+ *
+ * Returns: the focus type
+ *
+ * Since: 4.24
+ */
+GtkFocusType
+gtk_widget_class_get_focus_type (GtkWidgetClass *widget_class)
+{
+  GtkWidgetClassPrivate *priv = widget_class->priv;
+
+  g_return_val_if_fail (GTK_IS_WIDGET_CLASS (widget_class), GTK_FOCUS_TYPE_DEFAULT);
+
+  return priv->focus_type;
+}

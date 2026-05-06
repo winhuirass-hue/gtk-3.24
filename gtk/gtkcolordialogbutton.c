@@ -258,8 +258,6 @@ gtk_color_dialog_button_class_init (GtkColorDialogButtonClass *class)
   object_class->dispose = gtk_color_dialog_button_dispose;
   object_class->finalize = gtk_color_dialog_button_finalize;
 
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
-  widget_class->focus = gtk_widget_focus_child;
   widget_class->unroot = gtk_color_dialog_button_unroot;
 
   /**
@@ -320,6 +318,7 @@ gtk_color_dialog_button_class_init (GtkColorDialogButtonClass *class)
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BIN_LAYOUT);
   gtk_widget_class_set_css_name (widget_class, "colorbutton");
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_GROUP);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 /* }}} */

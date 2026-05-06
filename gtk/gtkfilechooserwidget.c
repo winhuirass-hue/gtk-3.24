@@ -6380,8 +6380,6 @@ gtk_file_chooser_widget_class_init (GtkFileChooserWidgetClass *class)
   widget_class->root = gtk_file_chooser_widget_root;
   widget_class->unroot = gtk_file_chooser_widget_unroot;
   widget_class->size_allocate = gtk_file_chooser_widget_size_allocate;
-  widget_class->grab_focus = gtk_widget_grab_focus_child;
-  widget_class->focus = gtk_widget_focus_child;
 
   g_type_ensure (GTK_TYPE_FILE_THUMBNAIL);
 
@@ -6843,6 +6841,7 @@ gtk_file_chooser_widget_class_init (GtkFileChooserWidgetClass *class)
   gtk_widget_class_set_css_name (widget_class, I_("filechooser"));
 
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BIN_LAYOUT);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static gboolean

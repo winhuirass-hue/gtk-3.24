@@ -346,14 +346,6 @@ G_DEFINE_TYPE_WITH_CODE (GtkSpinButton, gtk_spin_button, GTK_TYPE_WIDGET,
 
 
 static gboolean
-gtk_spin_button_grab_focus (GtkWidget *widget)
-{
-  GtkSpinButton *spin_button = GTK_SPIN_BUTTON (widget);
-
-  return gtk_widget_grab_focus (spin_button->entry);
-}
-
-static gboolean
 gtk_spin_button_mnemonic_activate (GtkWidget *widget,
                                    gboolean   group_cycling)
 {
@@ -376,8 +368,6 @@ gtk_spin_button_class_init (GtkSpinButtonClass *class)
   widget_class->realize = gtk_spin_button_realize;
   widget_class->state_flags_changed = gtk_spin_button_state_flags_changed;
   widget_class->mnemonic_activate = gtk_spin_button_mnemonic_activate;
-  widget_class->grab_focus = gtk_spin_button_grab_focus;
-  widget_class->focus = gtk_widget_focus_child;
 
   class->input = NULL;
   class->output = NULL;
@@ -651,6 +641,7 @@ gtk_spin_button_class_init (GtkSpinButtonClass *class)
   gtk_widget_class_set_layout_manager_type (widget_class, GTK_TYPE_BOX_LAYOUT);
   gtk_widget_class_set_css_name (widget_class, I_("spinbutton"));
   gtk_widget_class_set_accessible_role (widget_class, GTK_ACCESSIBLE_ROLE_SPIN_BUTTON);
+  gtk_widget_class_set_focus_type (widget_class, GTK_FOCUS_TYPE_CHILD);
 }
 
 static GtkEditable *
