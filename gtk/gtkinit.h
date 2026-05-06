@@ -38,31 +38,32 @@
 
 G_BEGIN_DECLS
 
-/**
- * GTK_PRIORITY_RESIZE: (value 110)
- *
- * Use this priority for functionality related to size allocation.
- *
- * It is used internally by GTK+ to compute the sizes of widgets.
- * This priority is higher than %GDK_PRIORITY_REDRAW to avoid
- * resizing a widget which was just redrawn.
+GDK_AVAILABLE_IN_ALL
+void     gtk_init                 (void);
+
+GDK_AVAILABLE_IN_ALL
+gboolean gtk_init_check           (void);
+
+GDK_AVAILABLE_IN_ALL
+gboolean gtk_is_initialized       (void);
+
+#ifdef G_OS_WIN32
+
+/* Variants that are used to check for correct struct packing
+ * when building GTK+-using code.
  */
-#define GTK_PRIORITY_RESIZE (G_PRIORITY_HIGH_IDLE + 10)
-
 GDK_AVAILABLE_IN_ALL
-void              gtk_disable_setlocale    (void);
-
-GDK_AVAILABLE_IN_4_18
-void              gtk_disable_portals      (void);
-
-GDK_AVAILABLE_IN_4_22
-void              gtk_disable_portal_interfaces (const char **portal_interfaces);
-
+void     gtk_init_abi_check       (int     num_checks,
+                                   size_t  sizeof_GtkWindow,
+                                   size_t  sizeof_GtkBox);
 GDK_AVAILABLE_IN_ALL
-PangoLanguage *   gtk_get_default_language (void) G_GNUC_CONST;
-GDK_AVAILABLE_IN_ALL
-GtkTextDirection  gtk_get_locale_direction (void);
+gboolean gtk_init_check_abi_check (int     num_checks,
+                                   size_t  sizeof_GtkWindow,
+                                   size_t  sizeof_GtkBox);
 
+#define gtk_init() gtk_init_abi_check (2, sizeof (GtkWindow), sizeof (GtkBox))
+#define gtk_init_check() gtk_init_check_abi_check (2, sizeof (GtkWindow), sizeof (GtkBox))
+
+#endif
 
 G_END_DECLS
-

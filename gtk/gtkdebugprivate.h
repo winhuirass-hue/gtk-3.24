@@ -24,45 +24,11 @@
 
 #pragma once
 
-
-#if !defined (__GTK_H_INSIDE__) && !defined (GTK_COMPILATION)
-#error "Only <gtk/gtk.h> can be included directly."
-#endif
-
-#include <gdk/gdk.h>
-#include <gtk/gtkwidget.h>
-#ifdef G_PLATFORM_WIN32
-#include <gtk/gtkbox.h>
-#include <gtk/gtkwindow.h>
-#endif
+#include "gtkdebug.h"
 
 G_BEGIN_DECLS
 
-/**
- * GTK_PRIORITY_RESIZE: (value 110)
- *
- * Use this priority for functionality related to size allocation.
- *
- * It is used internally by GTK+ to compute the sizes of widgets.
- * This priority is higher than %GDK_PRIORITY_REDRAW to avoid
- * resizing a widget which was just redrawn.
- */
-#define GTK_PRIORITY_RESIZE (G_PRIORITY_HIGH_IDLE + 10)
-
-GDK_AVAILABLE_IN_ALL
-void              gtk_disable_setlocale    (void);
-
-GDK_AVAILABLE_IN_4_18
-void              gtk_disable_portals      (void);
-
-GDK_AVAILABLE_IN_4_22
-void              gtk_disable_portal_interfaces (const char **portal_interfaces);
-
-GDK_AVAILABLE_IN_ALL
-PangoLanguage *   gtk_get_default_language (void) G_GNUC_CONST;
-GDK_AVAILABLE_IN_ALL
-GtkTextDirection  gtk_get_locale_direction (void);
-
+void          gtk_debug_init              (void);
+void          gtk_debug_init_display      (void);
 
 G_END_DECLS
-

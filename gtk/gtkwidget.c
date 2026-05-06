@@ -2968,8 +2968,8 @@ update_cursor_on_state_change (GtkWidget *widget)
   GtkRoot *root;
 
   root = _gtk_widget_get_root (widget);
-  if (GTK_IS_WINDOW (root))
-    gtk_window_update_pointer_focus_on_state_change (GTK_WINDOW (root), widget);
+  if (root)
+    gtk_root_update_pointer_focus_state_change (root, widget);
 }
 
 /**
@@ -8106,26 +8106,17 @@ static GdkDevice **
 _gtk_widget_list_devices (GtkWidget *widget,
                           guint     *out_n_devices)
 {
-  GtkRoot *root;
-
   g_return_val_if_fail (GTK_IS_WIDGET (widget), NULL);
   g_assert (out_n_devices);
 
-  if (!_gtk_widget_get_mapped (widget))
+  if (!_gtk_widget_get_mapped (widget) ||
+      gtk_widget_get_root (widget) == NULL)
     {
       *out_n_devices = 0;
       return NULL;
     }
 
-  root = gtk_widget_get_root (widget);
-  if (!GTK_IS_WINDOW (root))
-    {
-      *out_n_devices = 0;
-      return NULL;
-    }
-
-  return gtk_window_get_foci_on_widget (GTK_WINDOW (root),
-                                        widget, out_n_devices);
+  return gtk_root_get_foci_on_widget (gtk_widget_get_root (widget), widget, out_n_devices);
 }
 
 /*
@@ -12740,8 +12731,8 @@ gtk_widget_set_cursor (GtkWidget *widget,
     return;
 
   root = _gtk_widget_get_root (widget);
-  if (GTK_IS_WINDOW (root))
-    gtk_window_maybe_update_cursor (GTK_WINDOW (root), widget, NULL);
+  if (root)
+    gtk_root_maybe_update_cursor (root, widget, NULL);
 
   g_object_notify_by_pspec (G_OBJECT (widget), widget_props[PROP_CURSOR]);
 }

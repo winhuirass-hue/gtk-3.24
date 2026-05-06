@@ -725,7 +725,8 @@ maybe_request_motion_event (GtkPopover *popover)
   GtkRoot *root = gtk_widget_get_root (widget);
   GdkSeat *seat;
   GdkDevice *device;
-  GtkWidget *focus;
+  GtkPointerFocus *focus;
+  GtkWidget *target;
   GdkSurface *focus_surface;
 
   seat = gdk_display_get_default_seat (gtk_widget_get_display (widget));
@@ -734,15 +735,17 @@ maybe_request_motion_event (GtkPopover *popover)
 
 
   device = gdk_seat_get_pointer (seat);
-  focus = gtk_window_lookup_pointer_focus_widget (GTK_WINDOW (root),
-                                                  device, NULL);
+  focus = gtk_root_lookup_pointer_focus (root, device, NULL);
   if (!focus)
     return;
-
-  if (!gtk_widget_is_ancestor (focus, GTK_WIDGET (popover)))
+  target = gtk_pointer_focus_get_target (focus);
+  if (!target)
     return;
 
-  focus_surface = gtk_native_get_surface (gtk_widget_get_native (focus));
+  if (!gtk_widget_is_ancestor (target, GTK_WIDGET (popover)))
+    return;
+
+  focus_surface = gtk_native_get_surface (gtk_widget_get_native (target));
   gdk_surface_request_motion (focus_surface);
 }
 

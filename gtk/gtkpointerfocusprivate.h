@@ -26,13 +26,13 @@ struct _GtkPointerFocus
   int ref_count;
   GdkDevice *device;
   GdkEventSequence *sequence;
-  GtkWindow *toplevel;
+  GtkRoot *root;
   GtkWidget *target; /* Unaffected by the implicit grab */
   GtkWidget *grab_widget;
   double x, y; /* In toplevel coordinates */
 };
 
-GtkPointerFocus * gtk_pointer_focus_new  (GtkWindow        *toplevel,
+GtkPointerFocus * gtk_pointer_focus_new  (GtkRoot          *root,
                                           GtkWidget        *widget,
                                           GdkDevice        *device,
                                           GdkEventSequence *sequence,

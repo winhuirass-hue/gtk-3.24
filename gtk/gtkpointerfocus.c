@@ -31,7 +31,7 @@ target_destroyed (gpointer  data,
 }
 
 GtkPointerFocus *
-gtk_pointer_focus_new (GtkWindow        *toplevel,
+gtk_pointer_focus_new (GtkRoot          *root,
                        GtkWidget        *widget,
                        GdkDevice        *device,
                        GdkEventSequence *sequence,
@@ -42,7 +42,7 @@ gtk_pointer_focus_new (GtkWindow        *toplevel,
 
   focus = g_new0 (GtkPointerFocus, 1);
   focus->ref_count = 1;
-  focus->toplevel = toplevel;
+  focus->root = root;
   focus->device = device;
   focus->sequence = sequence;
   gtk_pointer_focus_set_target (focus, widget);
@@ -135,8 +135,8 @@ gtk_pointer_focus_repick_target (GtkPointerFocus *focus)
 {
   GtkWidget *target;
 
-  target = gtk_widget_pick (GTK_WIDGET (focus->toplevel), focus->x, focus->y, GTK_PICK_DEFAULT);
+  target = gtk_widget_pick (GTK_WIDGET (focus->root), focus->x, focus->y, GTK_PICK_DEFAULT);
   if (target == NULL)
-    target = GTK_WIDGET (focus->toplevel);
+    target = GTK_WIDGET (focus->root);
   gtk_pointer_focus_set_target (focus, target);
 }
