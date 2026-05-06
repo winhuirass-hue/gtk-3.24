@@ -446,3 +446,12 @@ _graphene_rect_init_from_clip_extents (graphene_rect_t *rect,
   cairo_clip_extents (cr, &x1c, &y1c, &x2c, &y2c);
   gsk_rect_init (rect, x1c, y1c, x2c - x1c, y2c - y1c);
 }
+
+static inline gboolean
+gsk_rect_isfinite (const graphene_rect_t *rect)
+{
+  return isfinite (rect->origin.x) &&
+         isfinite (rect->origin.y) &&
+         isfinite (rect->size.width) &&
+         isfinite (rect->size.height);
+}

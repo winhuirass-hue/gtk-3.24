@@ -2436,8 +2436,16 @@ gsk_transform_new (void)
  * The result is the bounding box containing the coplanar quad.
  *
  * The input and output rect may point to the same rectangle.
+ *
+ * If applying the transformation yields a result that can't be
+ * represented in the floating point range, the return value is
+ * zeroed out instead, and false is returned.
+ *
+ * Note: Before 4.24, this function was returning not returning a boolean.
+ *
+ * Returns: true if the transformation yielded a valid result, false otherwise
  */
-void
+gboolean
 gsk_transform_transform_bounds (GskTransform          *self,
                                 const graphene_rect_t *rect,
                                 graphene_rect_t       *out_rect)
@@ -2505,6 +2513,14 @@ gsk_transform_transform_bounds (GskTransform          *self,
       }
       break;
     }
+
+  if (!gsk_rect_isfinite (out_rect))
+    {
+      gsk_rect_init (out_rect, 0, 0, 0, 0);
+      return FALSE;
+    }
+
+  return TRUE;
 }
 
 /**
@@ -2515,8 +2531,16 @@ gsk_transform_transform_bounds (GskTransform          *self,
  *   the transformed point
  *
  * Transforms a point using the given transform.
+ *
+ * If applying the transformation yields a result that can't be
+ * represented in the floating point range, the return value is
+ * zeroed out instead, and false is returned.
+ *
+ * Note: Before 4.24, this function was returning not returning a boolean.
+ *
+ * Returns: true if the transformation yielded a valid result, false otherwise
  */
-void
+gboolean
 gsk_transform_transform_point (GskTransform           *self,
                                const graphene_point_t *point,
                                graphene_point_t       *out_point)
@@ -2575,6 +2599,14 @@ gsk_transform_transform_point (GskTransform           *self,
       }
       break;
     }
+
+  if (!isfinite (out_point->x) || !isfinite (out_point->y))
+    {
+      out_point->x = out_point->y = 0;
+      return FALSE;
+    }
+
+  return TRUE;
 }
 
 static guint
