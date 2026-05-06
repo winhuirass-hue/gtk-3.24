@@ -65,6 +65,7 @@
 #include "color-management-v1-client-protocol.h"
 #include "color-representation-v1-client-protocol.h"
 #include "xdg-session-management-v1-client-protocol.h"
+#include <wayland/xdg-dbus-annotation-v1-client-protocol.h>
 
 #include "wm-button-layout-translation.h"
 
@@ -132,6 +133,7 @@
 #define XDG_WM_DIALOG_VERSION           1
 #define XDG_TOPLEVEL_ICON_VERSION       1
 #define XDG_WM_BASE_VERSION             7
+#define XDG_DBUS_ANNOTATION_VERSION     1
 
 G_DEFINE_TYPE (GdkWaylandDisplay, gdk_wayland_display, GDK_TYPE_DISPLAY)
 
@@ -743,6 +745,12 @@ gdk_registry_handle_global (void               *data,
         wl_registry_bind (display_wayland->wl_registry, id,
                           &xdg_toplevel_icon_manager_v1_interface, XDG_TOPLEVEL_ICON_VERSION);
     }
+  else if (match_global (display_wayland, interface, version, xdg_dbus_annotation_manager_v1_interface.name, 0))
+    {
+      display_wayland->dbus_annotation_manager =
+      wl_registry_bind (display_wayland->wl_registry, id,
+                        &xdg_dbus_annotation_manager_v1_interface, XDG_DBUS_ANNOTATION_VERSION);
+    }
 
   g_hash_table_insert (display_wayland->known_globals,
                        GUINT_TO_POINTER (id), g_strdup (interface));
@@ -944,6 +952,7 @@ gdk_wayland_display_dispose (GObject *object)
   g_clear_pointer (&display_wayland->toplevel_icon, xdg_toplevel_icon_manager_v1_destroy);
   g_clear_pointer (&display_wayland->session, xdg_session_v1_destroy);
   g_clear_pointer (&display_wayland->session_manager, xdg_session_manager_v1_destroy);
+  g_clear_pointer (&display_wayland->dbus_annotation_manager, xdg_dbus_annotation_manager_v1_destroy);
 
   g_clear_pointer (&display_wayland->shm, wl_shm_destroy);
   g_clear_pointer (&display_wayland->wl_registry, wl_registry_destroy);
