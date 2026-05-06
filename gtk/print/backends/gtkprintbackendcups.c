@@ -202,6 +202,9 @@ static GObjectClass *backend_parent_class;
 static void                 gtk_print_backend_cups_finalize        (GObject                           *object);
 static void                 gtk_print_backend_cups_dispose         (GObject                           *object);
 static void                 cups_get_printer_list                  (GtkPrintBackend                   *print_backend);
+static char *               cups_get_printer_name_without_instance (const char                        *full_printer_name);
+static void                 cups_get_user_printer_instances        (const char                        *printer_name,
+                                                                    GList                             *instance_names);
 static void                 cups_get_default_printer               (GtkPrintBackendCups               *print_backend);
 static void                 cups_get_local_default_printer         (GtkPrintBackendCups               *print_backend);
 static void                 cups_request_execute                   (GtkPrintBackendCups               *print_backend,
@@ -773,6 +776,9 @@ gtk_print_backend_cups_print_stream (GtkPrintBackend         *print_backend,
                                                     cups_printer->device_uri,
                                                     GTK_PRINT_BACKEND_CUPS (print_backend)->username);
 
+      // strip instance name as it is not part of the printer URI
+      char *printer_name = cups_get_printer_name_without_instance (gtk_printer_get_name (gtk_print_job_get_printer (job)));
+
       httpAssembleURIf (HTTP_URI_CODING_ALL,
                         printer_absolute_uri,
                         sizeof (printer_absolute_uri),
@@ -781,7 +787,9 @@ gtk_print_backend_cups_print_stream (GtkPrintBackend         *print_backend,
                         "localhost",
                         ippGetPort (),
                         "/printers/%s",
-                        gtk_printer_get_name (gtk_print_job_get_printer (job)));
+                        printer_name);
+
+      g_free (printer_name);
     }
 
   gtk_cups_request_set_ipp_version (request,
@@ -2466,8 +2474,12 @@ cups_create_printer (GtkPrintBackendCups *cups_backend,
 
   if (!info->avahi_printer)
     {
-      cups_printer->device_uri = g_strdup_printf ("/printers/%s",
-                                                  info->printer_name);
+      // strip instance name for printer instances
+      // The instance name is not part of the device URI, but the device
+      // URI is the same as that of the default instance.
+      char *printer_name = cups_get_printer_name_without_instance (info->printer_name);
+      cups_printer->device_uri = g_strdup_printf ("/printers/%s", printer_name);
+      g_free (printer_name);
     }
 
   /* Check to see if we are looking at a class */
@@ -3722,9 +3734,12 @@ cups_request_printer_list_cb (GtkPrintBackendCups *cups_backend,
   for (attr = ippGetFirstAttribute (response); attr != NULL;
        attr = ippGetNextAttribute (response))
     {
-      GtkPrinter *printer;
       gboolean status_changed = FALSE;
       GList *node;
+      // holds all instances of the printer
+      GList *instance_names = NULL;
+      GList *l;
+
       PrinterSetupInfo *info = g_new0 (PrinterSetupInfo, 1);
 
       /* Skip leading attributes until we hit a printer...
@@ -3784,91 +3799,108 @@ cups_request_printer_list_cb (GtkPrintBackendCups *cups_backend,
           if (!cups_backend->got_default_printer)
             cups_get_default_printer (cups_backend);
         }
+      // add default instance
+      instance_names = g_list_append (instance_names, g_strdup (info->printer_name));
 
-      /* remove name from checklist if it was found */
-      node = g_list_find_custom (removed_printer_checklist,
-				 info->printer_name,
-				 (GCompareFunc) find_printer);
-      removed_printer_checklist = g_list_delete_link (removed_printer_checklist,
-						      node);
+      // retrieve printer instances of the printer
+      // They are treated as separate printers for which all attributes -
+      // except for the name - are initially the same as those of the default
+      // instance.
+      cups_get_user_printer_instances (info->printer_name, instance_names);
 
-      printer = gtk_print_backend_find_printer (backend, info->printer_name);
-      if (!printer)
-	{
-	  printer = cups_create_printer (cups_backend, info);
-	  list_has_changed = TRUE;
-	}
-      else if (GTK_PRINTER_CUPS (printer)->avahi_browsed && info->is_temporary)
+      for (l = instance_names; l != NULL; l = l->next)
         {
-          /*
-           * A temporary queue was created for a printer found via Avahi.
-           * We modify the placeholder GtkPrinter to point to the temporary queue
-           * instead of removing the placeholder GtkPrinter and creating new GtkPrinter.
-           */
 
-          g_object_ref (printer);
+          GtkPrinter *printer;
 
-          GTK_PRINTER_CUPS (printer)->avahi_browsed = FALSE;
-          GTK_PRINTER_CUPS (printer)->is_temporary = TRUE;
-          g_free (GTK_PRINTER_CUPS (printer)->device_uri);
-          GTK_PRINTER_CUPS (printer)->device_uri = g_strdup_printf ("/printers/%s",
-                                                                    info->printer_name);
-          gtk_printer_set_has_details (printer, FALSE);
-          cups_printer_request_details (printer);
+          info->printer_name = l->data;
+
+          /* remove name from checklist if it was found */
+          node = g_list_find_custom (removed_printer_checklist,
+                                     info->printer_name,
+                                     (GCompareFunc) find_printer);
+          removed_printer_checklist = g_list_delete_link (removed_printer_checklist,
+                                                          node);
+
+          printer = gtk_print_backend_find_printer (backend, info->printer_name);
+          if (!printer)
+            {
+              printer = cups_create_printer (cups_backend, info);
+              list_has_changed = TRUE;
+            }
+          else if (GTK_PRINTER_CUPS (printer)->avahi_browsed && info->is_temporary)
+            {
+              /*
+               * A temporary queue was created for a printer found via Avahi.
+               * We modify the placeholder GtkPrinter to point to the temporary queue
+               * instead of removing the placeholder GtkPrinter and creating new GtkPrinter.
+               */
+
+              g_object_ref (printer);
+
+              GTK_PRINTER_CUPS (printer)->avahi_browsed = FALSE;
+              GTK_PRINTER_CUPS (printer)->is_temporary = TRUE;
+              g_free (GTK_PRINTER_CUPS (printer)->device_uri);
+              GTK_PRINTER_CUPS (printer)->device_uri = g_strdup_printf ("/printers/%s",
+                                                                        info->printer_name);
+              gtk_printer_set_has_details (printer, FALSE);
+              cups_printer_request_details (printer);
+            }
+          else
+            g_object_ref (printer);
+
+          GTK_PRINTER_CUPS (printer)->remote = info->remote_printer;
+
+          gtk_printer_set_is_paused (printer, info->is_paused);
+          gtk_printer_set_is_accepting_jobs (printer, info->is_accepting_jobs);
+
+          if (!gtk_printer_is_active (printer))
+            {
+              gtk_printer_set_is_active (printer, TRUE);
+              gtk_printer_set_is_new (printer, TRUE);
+              list_has_changed = TRUE;
+            }
+
+          if (gtk_printer_is_new (printer))
+            {
+              g_signal_emit_by_name (backend, "printer-added", printer);
+
+              if (backend_finalized)
+                break;
+
+              gtk_printer_set_is_new (printer, FALSE);
+            }
+
+          GTK_PRINTER_CUPS (printer)->state = info->state;
+          GTK_PRINTER_CUPS (printer)->ipp_version_major = info->ipp_version_major;
+          GTK_PRINTER_CUPS (printer)->ipp_version_minor = info->ipp_version_minor;
+          GTK_PRINTER_CUPS (printer)->supports_copies = info->supports_copies;
+          GTK_PRINTER_CUPS (printer)->supports_collate = info->supports_collate;
+          GTK_PRINTER_CUPS (printer)->supports_number_up = info->supports_number_up;
+          GTK_PRINTER_CUPS (printer)->number_of_covers = info->number_of_covers;
+          g_clear_pointer (&(GTK_PRINTER_CUPS (printer)->covers), g_strfreev);
+          GTK_PRINTER_CUPS (printer)->covers = g_strdupv (info->covers);
+          GTK_PRINTER_CUPS (printer)->is_temporary = info->is_temporary;
+          status_changed = gtk_printer_set_job_count (printer, info->job_count);
+          status_changed |= gtk_printer_set_location (printer, info->location);
+          status_changed |= gtk_printer_set_description (printer,
+                                                         info->description);
+
+          set_info_state_message (info);
+
+          status_changed |= gtk_printer_set_state_message (printer, info->state_msg);
+          status_changed |= gtk_printer_set_is_accepting_jobs (printer, info->is_accepting_jobs);
+
+          set_printer_icon_name_from_info (printer, info);
+
+          if (status_changed)
+            g_signal_emit_by_name (GTK_PRINT_BACKEND (backend),
+                                   "printer-status-changed", printer);
+
+          /* The ref is held by GtkPrintBackend, in add_printer() */
+          g_object_unref (printer);
         }
-      else
-	g_object_ref (printer);
-
-      GTK_PRINTER_CUPS (printer)->remote = info->remote_printer;
-
-      gtk_printer_set_is_paused (printer, info->is_paused);
-      gtk_printer_set_is_accepting_jobs (printer, info->is_accepting_jobs);
-
-      if (!gtk_printer_is_active (printer))
-        {
-	  gtk_printer_set_is_active (printer, TRUE);
-	  gtk_printer_set_is_new (printer, TRUE);
-          list_has_changed = TRUE;
-        }
-
-      if (gtk_printer_is_new (printer))
-        {
-	  g_signal_emit_by_name (backend, "printer-added", printer);
-
-          if (backend_finalized)
-            break;
-
-	  gtk_printer_set_is_new (printer, FALSE);
-        }
-
-      GTK_PRINTER_CUPS (printer)->state = info->state;
-      GTK_PRINTER_CUPS (printer)->ipp_version_major = info->ipp_version_major;
-      GTK_PRINTER_CUPS (printer)->ipp_version_minor = info->ipp_version_minor;
-      GTK_PRINTER_CUPS (printer)->supports_copies = info->supports_copies;
-      GTK_PRINTER_CUPS (printer)->supports_collate = info->supports_collate;
-      GTK_PRINTER_CUPS (printer)->supports_number_up = info->supports_number_up;
-      GTK_PRINTER_CUPS (printer)->number_of_covers = info->number_of_covers;
-      g_clear_pointer (&(GTK_PRINTER_CUPS (printer)->covers), g_strfreev);
-      GTK_PRINTER_CUPS (printer)->covers = g_strdupv (info->covers);
-      GTK_PRINTER_CUPS (printer)->is_temporary = info->is_temporary;
-      status_changed = gtk_printer_set_job_count (printer, info->job_count);
-      status_changed |= gtk_printer_set_location (printer, info->location);
-      status_changed |= gtk_printer_set_description (printer,
-						     info->description);
-
-      set_info_state_message (info);
-
-      status_changed |= gtk_printer_set_state_message (printer, info->state_msg);
-      status_changed |= gtk_printer_set_is_accepting_jobs (printer, info->is_accepting_jobs);
-
-      set_printer_icon_name_from_info (printer, info);
-
-      if (status_changed)
-        g_signal_emit_by_name (GTK_PRINT_BACKEND (backend),
-                               "printer-status-changed", printer);
-
-      /* The ref is held by GtkPrintBackend, in add_printer() */
-      g_object_unref (printer);
+      g_list_free_full (instance_names, g_free);
       printer_setup_info_free (info);
 
       if (attr == NULL)
@@ -4258,6 +4290,32 @@ static const char *lpoptions_locations[] = {
   ".cups/lpoptions"
 };
 
+/*
+ * Returns the absolute path of an lpoptions file at `path`.
+ * If `path` isn't absolute yet, it is interpreted as relative to
+ * the current user's home directory.
+ */
+static char *
+get_absolute_lpoptions_file_path (const char *path)
+{
+  if (g_path_is_absolute (path))
+    return g_strdup(path);
+
+  return g_build_filename (g_get_home_dir (), path, NULL);
+}
+/*
+ * Returns the name of the CUPS printer name passed as a param, but stripping
+ * the instance name if any is present.
+ */
+static char *
+cups_get_printer_name_without_instance (const char *full_printer_name)
+{
+  char **name_parts = g_strsplit (full_printer_name, "/", 2);
+  char *printer_main_name = g_strdup (name_parts[0]);
+  g_strfreev (name_parts);
+  return printer_main_name;
+}
+
 static void
 cups_parse_user_default_printer (const char  *filename,
                                  char       **printer_name)
@@ -4281,7 +4339,7 @@ cups_parse_user_default_printer (const char  *filename,
         continue;
 
       defname = lineptr;
-      while (!isspace (*lineptr) && *lineptr && *lineptr != '/')
+      while (!isspace (*lineptr) && *lineptr)
         lineptr++;
 
       *lineptr = '\0';
@@ -4301,21 +4359,50 @@ cups_get_user_default_printer (char **printer_name)
 
   for (i = 0; i < G_N_ELEMENTS (lpoptions_locations); i++)
     {
-      if (g_path_is_absolute (lpoptions_locations[i]))
-        {
-          cups_parse_user_default_printer (lpoptions_locations[i],
-                                           printer_name);
-        }
-      else
-        {
-          char *filename;
-
-          filename = g_build_filename (g_get_home_dir (),
-                                       lpoptions_locations[i], NULL);
-          cups_parse_user_default_printer (filename, printer_name);
-          g_free (filename);
-        }
+      gchar *filename = get_absolute_lpoptions_file_path (lpoptions_locations[i]);
+      cups_parse_user_default_printer (filename, printer_name);
+      g_free (filename);
     }
+}
+
+/*
+ * Parses the name of the destination from a line in an lpoptions file.
+ * If a destination name can be retrieved, this function returns `TRUE`,
+ * `name` points to the destination name and `lineptr` to the start of
+ * the remainder of the line.
+ * If no destination name can be parsed, `FALSE` is returned.
+ */
+static gboolean
+parse_printer_from_lpoptions_line (char *line,
+                                   char **lineptr,
+                                   char **name)
+{
+  if (strncasecmp (line, "dest", 4) == 0 && isspace (line[4]))
+    *lineptr = line + 4;
+  else if (strncasecmp (line, "default", 7) == 0 && isspace (line[7]))
+    *lineptr = line + 7;
+  else
+    return FALSE;
+
+  /* Skip leading whitespace */
+  while (isspace (**lineptr))
+    (*lineptr)++;
+
+  if (!**lineptr)
+    return FALSE;
+
+  *name = *lineptr;
+  while (!isspace (**lineptr) && **lineptr)
+    {
+      (*lineptr)++;
+    }
+
+  if (!**lineptr)
+    return FALSE;
+
+  *(*lineptr)++ = '\0';
+
+  return TRUE;
 }
 
 static int
@@ -4332,33 +4419,11 @@ cups_parse_user_options (const char     *filename,
 
   while (fgets (line, sizeof (line), fp) != NULL)
     {
-      if (strncasecmp (line, "dest", 4) == 0 && isspace (line[4]))
-        lineptr = line + 4;
-      else if (strncasecmp (line, "default", 7) == 0 && isspace (line[7]))
-        lineptr = line + 7;
-      else
+      gboolean has_options = parse_printer_from_lpoptions_line (
+          line, &lineptr, &name);
+
+      if (!has_options || strcasecmp (name, printer_name) != 0)
         continue;
-
-      /* Skip leading whitespace */
-      while (isspace (*lineptr))
-        lineptr++;
-
-      if (!*lineptr)
-        continue;
-
-      name = lineptr;
-      while (!isspace (*lineptr) && *lineptr)
-        {
-          lineptr++;
-        }
-
-      if (!*lineptr)
-        continue;
-
-      *lineptr++ = '\0';
-
-      if (strcasecmp (name, printer_name) != 0)
-          continue;
 
       /* We found our printer, parse the options */
 #if CUPS_VERSION_MAJOR < 3
@@ -4373,6 +4438,62 @@ cups_parse_user_options (const char     *filename,
   return num_options;
 }
 
+/*
+ * Parses the given lpoptions file for printer instances of the given
+ * printer 'printer_name' and inserts all of them into 'names'.
+ * The full instance names - including the printer name - is inserted,
+ * e.g. "myprinter/myinstance".
+ */
+static void
+cups_retrieve_printer_instances (const char *filename,
+                                 const char *printer_name,
+                                 GList *names)
+{
+  FILE *fp;
+  char line[1024], *lineptr, *name;
+  char *instance_prefix;
+  size_t pref_len;
+
+  if ((fp = g_fopen (filename, "r")) == NULL)
+    return;
+
+  // printer instance names start with name of default instance
+  // followed by '/'
+  instance_prefix = g_strconcat (printer_name, "/", NULL);
+  pref_len = strlen (instance_prefix);
+
+  while (fgets (line, sizeof (line), fp) != NULL)
+    {
+      gboolean is_instance;
+      gboolean name_found = parse_printer_from_lpoptions_line (
+          line, &lineptr, &name);
+
+      if (!name_found)
+        continue;
+
+      is_instance = strncasecmp (name, instance_prefix, pref_len) == 0;
+
+      if (is_instance)
+        names = g_list_append (names, g_strdup (name));
+    }
+
+  g_free (instance_prefix);
+  fclose (fp);
+}
+
+static void
+cups_get_user_printer_instances (const char *printer_name,
+                                 GList *instance_names)
+{
+  int i;
+  for (i = 0; i < G_N_ELEMENTS (lpoptions_locations); i++)
+    {
+      char *filename = get_absolute_lpoptions_file_path (lpoptions_locations[i]);
+      cups_retrieve_printer_instances (filename, printer_name, instance_names);
+      g_free (filename);
+    }
+}
+
 static int
 cups_get_user_options (const char     *printer_name,
                        int             num_options,
@@ -4382,23 +4503,10 @@ cups_get_user_options (const char     *printer_name,
 
   for (i = 0; i < G_N_ELEMENTS (lpoptions_locations); i++)
     {
-      if (g_path_is_absolute (lpoptions_locations[i]))
-        {
-           num_options = cups_parse_user_options (lpoptions_locations[i],
-                                                  printer_name,
-                                                  num_options,
-                                                  options);
-        }
-      else
-        {
-          char *filename;
-
-          filename = g_build_filename (g_get_home_dir (),
-                                       lpoptions_locations[i], NULL);
-          num_options = cups_parse_user_options (filename, printer_name,
+      char *filename = get_absolute_lpoptions_file_path (lpoptions_locations[i]);
+      num_options = cups_parse_user_options (filename, printer_name,
                                                  num_options, options);
-          g_free (filename);
-        }
+      g_free (filename);
     }
 
   return num_options;
