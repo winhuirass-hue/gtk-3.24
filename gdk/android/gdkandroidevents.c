@@ -84,42 +84,42 @@ gdk_android_events_int_hash (guint32 num)
 #define GDK_ANDROID_EVENTS_COMPARE_MASK(val, mask) \
   (((val) & (mask)) == (mask))
 
-#define GDK_ANDROID_TOUCH_EVENT_TYPE_MASK (3) // least significant 2 bits
-static GdkEventType
-gdk_android_events_touch_action_to_gdk (const AInputEvent *event, size_t pointer_index)
+static gboolean
+gdk_android_events_classify_touch_event (const AInputEvent *event,
+                                       size_t             pointer_index,
+                                       GdkEventType      *event_type_out)
 {
   gint32 action = AMotionEvent_getAction (event);
   gint32 masked_action = action & AMOTION_EVENT_ACTION_MASK;
+
   if (masked_action == AMOTION_EVENT_ACTION_POINTER_DOWN ||
       masked_action == AMOTION_EVENT_ACTION_POINTER_UP)
     {
       size_t affected_pointer = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
       if (pointer_index != affected_pointer)
-        return GDK_TOUCH_UPDATE;
-      switch (masked_action)
-        {
-        case AMOTION_EVENT_ACTION_POINTER_DOWN:
-          return GDK_TOUCH_BEGIN;
-        case AMOTION_EVENT_ACTION_POINTER_UP:
-          return GDK_TOUCH_END;
-        default:
-          __builtin_unreachable ();
-        }
+        return FALSE;
+
+      *event_type_out = (masked_action == AMOTION_EVENT_ACTION_POINTER_DOWN)
+                        ? GDK_TOUCH_BEGIN : GDK_TOUCH_END;
+      return TRUE;
     }
 
-  jint event_type = masked_action & GDK_ANDROID_TOUCH_EVENT_TYPE_MASK;
-  switch (event_type)
+  switch (masked_action)
     {
     case AMOTION_EVENT_ACTION_DOWN:
-      return GDK_TOUCH_BEGIN;
+      *event_type_out = GDK_TOUCH_BEGIN;
+      return TRUE;
     case AMOTION_EVENT_ACTION_UP:
-      return GDK_TOUCH_END;
+      *event_type_out = GDK_TOUCH_END;
+      return TRUE;
     case AMOTION_EVENT_ACTION_MOVE:
-      return GDK_TOUCH_UPDATE;
+      *event_type_out = GDK_TOUCH_UPDATE;
+      return TRUE;
     case AMOTION_EVENT_ACTION_CANCEL:
-      return GDK_TOUCH_CANCEL;
+      *event_type_out = GDK_TOUCH_CANCEL;
+      return TRUE;
     default:
-      __builtin_unreachable ();
+      return FALSE;
     }
 }
 
@@ -186,7 +186,10 @@ gdk_android_events_handle_motion_event (GdkAndroidSurface *surface,
       size_t pointers = AMotionEvent_getPointerCount (event);
       for (size_t i = 0; i < pointers; i++)
         {
-          GdkEventType ev_type = gdk_android_events_touch_action_to_gdk (event, i);
+          GdkEventType ev_type;
+
+          if (!gdk_android_events_classify_touch_event (event, i, &ev_type))
+            continue;
 
           guint sequence = base_sequence ^ gdk_android_events_int_hash(AMotionEvent_getPointerId (event, i));
           gfloat x = AMotionEvent_getX (event, i) / surface->cfg.scale;
