@@ -92,12 +92,21 @@ gsk_gpu_cached_fill_equal (gconstpointer v1,
          fill1->sy == fill2->sy;
 }
 
+static void
+gsk_gpu_cached_fill_print_stats (GskGpuCache *self,
+                                 GString     *string)
+{
+  GskGpuCachePrivate *priv = gsk_gpu_cache_get_private (self);
+
+  g_string_append_printf (string, "hits: %.2f%%", (priv->fill.hits * 100.0) / priv->fill.lookups);
+}
+
 static const GskGpuCachedClass GSK_GPU_CACHED_FILL_CLASS =
 {
   sizeof (GskGpuCachedFill),
   "Fill",
   FALSE,
-  gsk_gpu_cached_print_no_stats,
+  gsk_gpu_cached_fill_print_stats,
   gsk_gpu_cached_fill_finalize,
   gsk_gpu_cached_fill_should_collect
 };
@@ -169,7 +178,7 @@ determine_scale_and_subpixel_grid (const graphene_size_t *scale,
 {
   if (gsk_transform_get_fine_category (modelview) <= GSK_FINE_TRANSFORM_CATEGORY_2D)
     {
-      *sx = *sy = ceilf (MAX (scale->width, scale->height) + 0.5);
+     *sx = *sy = MIN (ceilf (MAX (scale->width, scale->height) + 0.5), 10);
       *subpixel_scale = 1;
     }
   else
@@ -213,8 +222,13 @@ gsk_gpu_cached_fill_lookup (GskGpuCache           *self,
                                   .fx = fx,
                                   .fy = fy,
                                 });
+
+  priv->fill.lookups++;
+
   if (cached)
     {
+      priv->fill.hits++;
+
       gsk_gpu_cached_use ((GskGpuCached *) cached);
 
       graphene_rect_init (out_rect,

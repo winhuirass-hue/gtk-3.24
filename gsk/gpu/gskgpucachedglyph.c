@@ -78,12 +78,21 @@ gsk_gpu_cached_glyph_equal (gconstpointer v1,
       && glyph1->scale == glyph2->scale;
 }
 
+static void
+gsk_gpu_cached_glyph_print_stats (GskGpuCache *self,
+                                  GString     *string)
+{
+  GskGpuCachePrivate *priv = gsk_gpu_cache_get_private (self);
+
+  g_string_append_printf (string, "hits: %.2f%%", (priv->glyph.hits * 100.0) / priv->glyph.lookups);
+}
+
 static const GskGpuCachedClass GSK_GPU_CACHED_GLYPH_CLASS =
 {
   sizeof (GskGpuCachedGlyph),
   "Glyph",
   FALSE,
-  gsk_gpu_cached_print_no_stats,
+  gsk_gpu_cached_glyph_print_stats,
   gsk_gpu_cached_glyph_finalize,
   gsk_gpu_cached_glyph_should_collect
 };
@@ -175,8 +184,13 @@ gsk_gpu_cached_glyph_lookup (GskGpuCache            *self,
   PangoFont *scaled_font;
 
   cache = g_hash_table_lookup (priv->glyph_cache, &lookup);
+
+  priv->glyph.lookups++;
+
   if (cache)
     {
+      priv->glyph.hits++;
+
       gsk_gpu_cached_use ((GskGpuCached *) cache);
 
       *out_bounds = cache->bounds;

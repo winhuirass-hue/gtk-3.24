@@ -74,12 +74,21 @@ gsk_gpu_cached_tile_should_collect (GskGpuCached *cached,
          gsk_gpu_cached_tile_is_invalid (self);
 }
 
+static void
+gsk_gpu_cached_tile_print_stats (GskGpuCache *self,
+                                 GString     *string)
+{
+  GskGpuCachePrivate *priv = gsk_gpu_cache_get_private (self);
+
+  g_string_append_printf (string, "hits: %.2f%%", (priv->tile.hits * 100.0) / priv->tile.lookups);
+}
+
 static const GskGpuCachedClass GSK_GPU_CACHED_TILE_CLASS =
 {
   sizeof (GskGpuCachedTile),
   "Tile",
   TRUE,
-  gsk_gpu_cached_print_no_stats,
+  gsk_gpu_cached_tile_print_stats,
   gsk_gpu_cached_tile_finalize,
   gsk_gpu_cached_tile_should_collect
 };
@@ -179,8 +188,13 @@ gsk_gpu_cache_lookup_tile (GskGpuCache      *cache,
     return NULL;
 
   tile = g_hash_table_lookup (priv->tile_cache, &lookup);
+
+  priv->tile.lookups++;
+
   if (tile == NULL)
     return NULL;
+
+  priv->tile.hits++;
 
   gsk_gpu_cached_use ((GskGpuCached *) tile);
 
