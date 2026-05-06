@@ -311,6 +311,10 @@ gtk_css_style_get_computed_value (GtkCssStyle *style,
       return style->size->min_width;
     case GTK_CSS_PROPERTY_MIN_HEIGHT:
       return style->size->min_height;
+    case GTK_CSS_PROPERTY_MAX_WIDTH:
+      return style->size->max_width;
+    case GTK_CSS_PROPERTY_MAX_HEIGHT:
+      return style->size->max_height;
     case GTK_CSS_PROPERTY_TRANSITION_PROPERTY:
       return style->transition->transition_property;
     case GTK_CSS_PROPERTY_TRANSITION_DURATION:

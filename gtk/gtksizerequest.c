@@ -30,6 +30,7 @@
 #include "gtkwidgetprivate.h"
 #include "gtkcssnodeprivate.h"
 #include "gtkcssnumbervalueprivate.h"
+#include "gtkcssstylepropertyprivate.h"
 #include "gtklayoutmanagerprivate.h"
 
 
@@ -181,6 +182,9 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
       int css_extra_for_size;
       int css_extra_size;
       int widget_margins_for_size;
+      int css_max_size;
+      int css_max_for_size;
+      GtkCssStyleProperty *prop;
 
       style = gtk_css_node_get_style (gtk_widget_get_css_node (widget));
       get_box_margin (style, &margin);
@@ -196,6 +200,16 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
           css_min_size = get_number_ceil (style->size->min_width);
           css_min_for_size = get_number_ceil (style->size->min_height);
           widget_margins_for_size = widget->priv->margin.top + widget->priv->margin.bottom;
+          prop = _gtk_css_style_property_lookup_by_id (GTK_CSS_PROPERTY_MAX_WIDTH);
+          if (gtk_css_value_equal (style->size->max_width, _gtk_css_style_property_get_initial_value (prop)))
+            css_max_size = G_MAXINT;
+          else
+            css_max_size = get_number_ceil (style->size->max_width);
+          prop = _gtk_css_style_property_lookup_by_id (GTK_CSS_PROPERTY_MAX_HEIGHT);
+          if (gtk_css_value_equal (style->size->max_height, _gtk_css_style_property_get_initial_value (prop)))
+            css_max_for_size = G_MAXINT;
+          else
+            css_max_for_size = get_number_ceil (style->size->max_height);
         }
       else
         {
@@ -204,6 +218,16 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
           css_min_size = get_number_ceil (style->size->min_height);
           css_min_for_size = get_number_ceil (style->size->min_width);
           widget_margins_for_size = widget->priv->margin.left + widget->priv->margin.right;
+          prop = _gtk_css_style_property_lookup_by_id (GTK_CSS_PROPERTY_MAX_HEIGHT);
+          if (gtk_css_value_equal (style->size->max_height, _gtk_css_style_property_get_initial_value (prop)))
+            css_max_size = G_MAXINT;
+          else
+            css_max_size = get_number_ceil (style->size->max_height);
+          prop = _gtk_css_style_property_lookup_by_id (GTK_CSS_PROPERTY_MAX_WIDTH);
+          if (gtk_css_value_equal (style->size->max_width, _gtk_css_style_property_get_initial_value (prop)))
+            css_max_for_size = G_MAXINT;
+          else
+            css_max_for_size = get_number_ceil (style->size->max_width);
         }
 
       GtkLayoutManager *layout_manager = gtk_widget_get_layout_manager (widget);
@@ -232,11 +256,8 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
                                           &minimum_for_size, &natural_for_size,
                                           NULL, NULL);
 
-              if (minimum_for_size < css_min_for_size)
-                minimum_for_size = css_min_for_size;
-
-              if (for_size < minimum_for_size)
-                for_size = minimum_for_size;
+              minimum_for_size = CLAMP (minimum_for_size, css_min_for_size, css_max_for_size);
+              for_size = CLAMP (for_size, css_min_for_size, css_max_for_size);
 
               adjusted_for_size = for_size - widget_margins_for_size;
               adjusted_for_size -= css_extra_for_size;
@@ -273,11 +294,8 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
               gtk_widget_measure (widget, OPPOSITE_ORIENTATION (orientation), -1,
                                   &minimum_for_size, &natural_for_size, NULL, NULL);
 
-              if (minimum_for_size < css_min_for_size)
-                minimum_for_size = css_min_for_size;
-
-              if (for_size < minimum_for_size)
-                for_size = minimum_for_size;
+              minimum_for_size = CLAMP (minimum_for_size, css_min_for_size, css_max_for_size);
+              for_size = CLAMP (for_size, css_min_for_size, css_max_for_size);
 
               adjusted_for_size = for_size - widget_margins_for_size;
               adjusted_for_size -= css_extra_for_size;
@@ -294,8 +312,8 @@ gtk_widget_query_size_for_orientation (GtkWidget        *widget,
             }
         }
 
-      min_size = MAX (0, MAX (reported_min_size, css_min_size)) + css_extra_size;
-      nat_size = MAX (0, MAX (reported_nat_size, css_min_size)) + css_extra_size;
+      min_size = MAX (0, CLAMP (reported_min_size, css_min_size, css_max_size)) + css_extra_size;
+      nat_size = MAX (0, CLAMP (reported_nat_size, css_min_size, css_max_size)) + css_extra_size;
 
       if (G_UNLIKELY (min_size > nat_size))
         {

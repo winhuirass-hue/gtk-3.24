@@ -138,6 +138,8 @@ window.background:dir(ltr)
       transform-origin: center; /* variables.css:85:3-14 */
       min-width: 0; /* variables.css:85:3-14 */
       min-height: 0; /* variables.css:85:3-14 */
+      max-width: none; /* variables.css:85:3-14 */
+      max-height: none; /* variables.css:85:3-14 */
       transition-property: all; /* variables.css:85:3-14 */
       transition-duration: 0; /* variables.css:85:3-14 */
       transition-timing-function: ease; /* variables.css:85:3-14 */
