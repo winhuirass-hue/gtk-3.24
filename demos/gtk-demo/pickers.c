@@ -291,7 +291,7 @@ on_language_changed (GtkDropDown *drop_down,
 
   gtk_font_dialog_set_language (font_dialog, lang);
 }
-	
+
 GtkWidget *
 do_pickers (GtkWidget *do_widget)
 {
@@ -304,8 +304,17 @@ do_pickers (GtkWidget *do_widget)
     GtkFontDialog *font_dialog;
     GtkWidget *lang_dropdown;
     GtkWidget *font_hbox;
-    const char *languages[] = { "No Language", "Current", "English", "Arabic", "Hindi", "Thai", "Vietnamese", NULL };
-    
+    const char *languages[] = {
+      "No Language",
+      "Current",
+      "English",
+      "Arabic",
+      "Hindi",
+      "Thai",
+      "Vietnamese",
+      NULL
+    };
+
     window = gtk_window_new ();
     gtk_window_set_display (GTK_WINDOW (window),
                             gtk_widget_get_display (do_widget));
@@ -340,11 +349,12 @@ do_pickers (GtkWidget *do_widget)
     font_dialog = gtk_font_dialog_new ();
     picker = gtk_font_dialog_button_new (font_dialog);
     gtk_label_set_mnemonic_widget (GTK_LABEL (label), picker);
-    
+    gtk_widget_set_hexpand (picker, TRUE);
+
     lang_dropdown = gtk_drop_down_new_from_strings (languages);
     gtk_drop_down_set_selected (GTK_DROP_DOWN (lang_dropdown), 0);
     g_signal_connect (lang_dropdown, "notify::selected", G_CALLBACK (on_language_changed), font_dialog);
-    
+
     font_hbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 6);
     gtk_box_append (GTK_BOX (font_hbox), picker);
     gtk_box_append (GTK_BOX (font_hbox), lang_dropdown);
