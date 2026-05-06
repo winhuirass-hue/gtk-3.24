@@ -45,6 +45,7 @@
 #include "gdktoplevelprivate.h"
 #include "gdkvulkancontext.h"
 #include "gdksubsurfaceprivate.h"
+#include "gdkseatprivate.h"
 
 #include "gsk/gskrectprivate.h"
 
@@ -1712,53 +1713,12 @@ gdk_surface_get_device_position (GdkSurface       *surface,
 void
 gdk_surface_hide (GdkSurface *surface)
 {
-  gboolean was_mapped;
-
   g_return_if_fail (GDK_IS_SURFACE (surface));
 
   if (surface->destroyed)
     return;
 
-  was_mapped = GDK_SURFACE_IS_MAPPED (surface);
-
   gdk_surface_queue_set_is_mapped (surface, FALSE);
-
-  if (was_mapped)
-    {
-      GdkDisplay *display;
-      GdkSeat *seat;
-      GList *devices, *d;
-
-      /* May need to break grabs on children */
-      display = surface->display;
-      seat = gdk_display_get_default_seat (display);
-      if (seat)
-        {
-          devices = gdk_seat_get_devices (seat, GDK_SEAT_CAPABILITY_ALL);
-          devices = g_list_prepend (devices, gdk_seat_get_keyboard (seat));
-          devices = g_list_prepend (devices, gdk_seat_get_pointer (seat));
-        }
-      else
-        devices = NULL;
-
-      for (d = devices; d; d = d->next)
-        {
-          GdkDevice *device = d->data;
-
-          if (_gdk_display_end_device_grab (display,
-                                            device,
-                                            _gdk_display_get_next_serial (display),
-                                            surface,
-                                            TRUE))
-            {
-G_GNUC_BEGIN_IGNORE_DEPRECATIONS
-              gdk_device_ungrab (device, GDK_CURRENT_TIME);
-G_GNUC_END_IGNORE_DEPRECATIONS
-            }
-        }
-
-      g_list_free (devices);
-    }
 
   GDK_SURFACE_GET_CLASS (surface)->hide (surface);
 
@@ -2111,8 +2071,8 @@ update_cursor (GdkDisplay *display,
   GdkSurface *cursor_surface;
   GdkSurface *pointer_surface;
   GdkPointerSurfaceInfo *pointer_info;
-  GdkDeviceGrabInfo *grab;
   GdkCursor *cursor;
+  GdkSeat *seat;
 
   g_assert (display);
   g_assert (device);
@@ -2120,19 +2080,11 @@ update_cursor (GdkDisplay *display,
   pointer_info = _gdk_display_get_pointer_info (display, device);
   pointer_surface = pointer_info->surface_under_pointer;
 
-  /* We ignore the serials here and just pick the last grab
-     we've sent, as that would shortly be used anyway. */
-  grab = _gdk_display_get_last_device_grab (display, device);
-  if (grab != NULL)
-    {
-      /* use the cursor from the grab surface */
-      cursor_surface = grab->surface;
-    }
-  else
-    {
-      /* otherwise use the cursor from the pointer surface */
-      cursor_surface = pointer_surface;
-    }
+  seat = gdk_device_get_seat (device);
+  cursor_surface = gdk_seat_get_topmost_grab_surface (seat);
+
+  if (!cursor_surface)
+    cursor_surface = pointer_surface;
 
   cursor = g_hash_table_lookup (cursor_surface->device_cursor, device);
 
@@ -2199,7 +2151,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
 {
   GdkSurface *event_surface = NULL;
   gboolean unlink_event = FALSE;
-  GdkDeviceGrabInfo *button_release_grab;
   GdkPointerSurfaceInfo *pointer_info = NULL;
   GdkDevice *device;
   GdkEventType type;
@@ -2221,8 +2172,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
           pointer_info = _gdk_display_get_pointer_info (display, device);
           pointer_info->last_physical_device = device;
         }
-
-      _gdk_display_device_grab_update (display, device, serial);
     }
 
   event_surface = gdk_event_get_surface (event);
@@ -2234,45 +2183,6 @@ _gdk_windowing_got_event (GdkDisplay *display,
     _gdk_display_set_surface_under_pointer (display, device, event_surface);
   else if (type == GDK_LEAVE_NOTIFY)
     _gdk_display_set_surface_under_pointer (display, device, NULL);
-
-  if (type == GDK_BUTTON_PRESS)
-    {
-      GdkSurface *grab_surface;
-      gboolean owner_events;
-
-      if (!gdk_device_grab_info (display, device, &grab_surface, &owner_events))
-        {
-          _gdk_display_add_device_grab (display,
-                                        device,
-                                        event_surface,
-                                        FALSE,
-                                        GDK_ALL_EVENTS_MASK,
-                                        serial,
-                                        gdk_event_get_time (event),
-                                        TRUE);
-          _gdk_display_device_grab_update (display, device, serial);
-        }
-    }
-  else if (type == GDK_BUTTON_RELEASE ||
-           type == GDK_TOUCH_CANCEL ||
-           type == GDK_TOUCH_END)
-    {
-      if (type == GDK_BUTTON_RELEASE ||
-          gdk_event_get_pointer_emulated (event))
-        {
-          button_release_grab =
-            _gdk_display_has_device_grab (display, device, serial);
-
-          if (button_release_grab &&
-              button_release_grab->implicit &&
-              (gdk_event_get_modifier_state (event) & GDK_ANY_BUTTON_MASK & ~(GDK_BUTTON1_MASK << (gdk_button_event_get_button (event) - 1))) == 0)
-            {
-              button_release_grab->serial_end = serial;
-              button_release_grab->implicit_ungrab = FALSE;
-              _gdk_display_device_grab_update (display, device, serial);
-            }
-        }
-    }
 
  out:
   if (unlink_event)
@@ -2424,11 +2334,10 @@ gdk_surface_ensure_motion (GdkSurface *surface)
   if (!gdk_surface_get_device_position (surface, device, &x, &y, &state))
     return;
 
-  if (gdk_device_grab_info (display, device, &grab_surface, NULL))
-    {
-      if (grab_surface != surface)
-        return;
-    }
+  grab_surface = gdk_seat_get_topmost_grab_surface (seat);
+
+  if (grab_surface && surface != grab_surface)
+    return;
 
   event = gdk_motion_event_new (surface,
                                 device,
@@ -2860,10 +2769,9 @@ gdk_surface_queue_set_is_mapped (GdkSurface *surface,
 static gboolean
 check_autohide (GdkEvent *event)
 {
-  GdkDisplay *display;
-  GdkDevice *device;
   GdkSurface *grab_surface, *event_surface;
   GdkEventType evtype = gdk_event_get_event_type (event);
+  GdkSeat *seat;
 
  switch ((guint) evtype)
     {
@@ -2880,9 +2788,9 @@ check_autohide (GdkEvent *event)
     case GDK_TOUCH_BEGIN:
     case GDK_TOUCHPAD_SWIPE:
     case GDK_TOUCHPAD_PINCH:
-      display = gdk_event_get_display (event);
-      device = gdk_event_get_device (event);
-      if (gdk_device_grab_info (display, device, &grab_surface, NULL))
+      seat = gdk_event_get_seat (event);
+      grab_surface = gdk_seat_get_topmost_grab_surface (seat);
+      if (grab_surface)
         {
           event_surface = gdk_event_get_surface (event);
           if (event_surface->autohide &&
@@ -3018,17 +2926,18 @@ gboolean
 gdk_surface_handle_event (GdkEvent *event)
 {
   GdkSurface *surface = gdk_event_get_surface (event);
+  GdkEventType evtype = gdk_event_get_event_type (event);
   gint64 begin_time = GDK_PROFILER_CURRENT_TIME;
   gboolean handled = FALSE;
 
-  if (!GDK_SURFACE_IS_MAPPED (surface))
+  if (!GDK_SURFACE_IS_MAPPED (surface) &&
+      !(evtype == GDK_LEAVE_NOTIFY || evtype == GDK_TOUCH_CANCEL))
     return FALSE;
 
   if (check_autohide (event))
     return TRUE;
 
-
-  if (gdk_event_get_event_type (event) == GDK_MOTION_NOTIFY)
+  if (evtype == GDK_MOTION_NOTIFY)
     surface->request_motion = FALSE;
 
   g_signal_emit (surface, signals[EVENT], 0, event, &handled);
@@ -3217,7 +3126,7 @@ gdk_surface_set_attached_context (GdkSurface     *self,
                                   GdkDrawContext *context)
 {
   GdkSurfacePrivate *priv = gdk_surface_get_instance_private (self);
-  
+
   priv->attached_context = context;
 }
 
