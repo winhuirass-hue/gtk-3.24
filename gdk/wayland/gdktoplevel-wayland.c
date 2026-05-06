@@ -111,6 +111,7 @@ struct _GdkWaylandToplevel
   struct {
       gboolean should_constrain;
       gboolean size_is_fixed;
+      gboolean allow_oversize;
   } next_layout;
 
   struct {
@@ -455,7 +456,12 @@ gdk_wayland_toplevel_compute_size (GdkSurface *surface)
   if (!wayland_surface->next_layout.surface_geometry_dirty)
     return FALSE;
 
-  if (wayland_toplevel->has_bounds)
+  if (wayland_toplevel->next_layout.allow_oversize)
+    {
+      bounds_width = 0;
+      bounds_height = 0;
+    }
+  else if (wayland_toplevel->has_bounds)
     {
       bounds_width = wayland_toplevel->bounds_width;
       bounds_height = wayland_toplevel->bounds_height;
@@ -663,6 +669,8 @@ gdk_wayland_toplevel_handle_configure (GdkWaylandSurface *wayland_surface)
       if (!saved_size)
         {
           wayland_toplevel->next_layout.should_constrain = TRUE;
+          if (is_resizing)
+            wayland_toplevel->next_layout.allow_oversize = TRUE;
 
           /* Save size for next time we get 0x0 */
           gdk_wayland_toplevel_save_size (wayland_toplevel);
@@ -670,6 +678,7 @@ gdk_wayland_toplevel_handle_configure (GdkWaylandSurface *wayland_surface)
       else if (is_resizing)
         {
           wayland_toplevel->next_layout.should_constrain = TRUE;
+          wayland_toplevel->next_layout.allow_oversize = TRUE;
         }
       else
         {
