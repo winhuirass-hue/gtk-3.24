@@ -443,10 +443,20 @@ gtk_widget_focus_sort (GtkWidget        *widget,
             GtkOrientation orientation = gtk_orientable_get_orientation (GTK_ORIENTABLE (layout));
             if (orientation == GTK_ORIENTATION_HORIZONTAL)
               {
-                if (direction == GTK_DIR_TAB_FORWARD)
-                  focus_sort_left_right (widget, GTK_DIR_RIGHT, focus_order);
+                if (_gtk_widget_get_direction (widget) != GTK_TEXT_DIR_RTL)
+                  {
+                    if (direction == GTK_DIR_TAB_FORWARD)
+                      focus_sort_left_right (widget, GTK_DIR_RIGHT, focus_order);
+                    else
+                      focus_sort_left_right (widget, GTK_DIR_LEFT, focus_order);
+                  }
                 else
-                  focus_sort_left_right (widget, GTK_DIR_LEFT, focus_order);
+                  {
+                    if (direction == GTK_DIR_TAB_FORWARD)
+                      focus_sort_left_right (widget, GTK_DIR_LEFT, focus_order);
+                    else
+                      focus_sort_left_right (widget, GTK_DIR_RIGHT, focus_order);
+                  }
               }
             else
               {
