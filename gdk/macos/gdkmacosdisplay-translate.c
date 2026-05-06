@@ -821,22 +821,6 @@ is_mouse_button_press_event (NSEventType type)
     }
 }
 
-static void
-get_surface_point_from_screen_point (GdkSurface *surface,
-                                     NSPoint     screen_point,
-                                     int        *x,
-                                     int        *y)
-{
-  NSWindow *nswindow;
-  NSPoint point;
-
-  nswindow = _gdk_macos_surface_get_native (GDK_MACOS_SURFACE (surface));
-  point = convert_nspoint_from_screen (nswindow, screen_point);
-
-  *x = point.x;
-  *y = surface->height - point.y;
-}
-
 static GdkSurface *
 find_surface_under_pointer (GdkMacosDisplay *self,
                             NSPoint          screen_point,
@@ -1055,9 +1039,17 @@ find_surface_for_mouse_event (GdkMacosDisplay *self,
       else
         {
           /* Finally check the grab window. */
-          GdkSurface *grab_surface = grab->surface;
-          get_surface_point_from_screen_point (grab_surface, point, x, y);
-          return GDK_MACOS_SURFACE (grab_surface);
+          GdkMacosSurface *grab_surface = GDK_MACOS_SURFACE (grab->surface);
+          int x_tmp, y_tmp;
+
+          _gdk_macos_display_from_display_coords (self,
+                                                  point.x,
+                                                  point.y,
+                                                  &x_tmp, &y_tmp);
+          *x = x_tmp - grab_surface->root_x;
+          *y = y_tmp - grab_surface->root_y;
+
+          return grab_surface;
         }
 
       return NULL;
