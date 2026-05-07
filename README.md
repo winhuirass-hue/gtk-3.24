@@ -54,6 +54,17 @@ In the bug report please include:
 * Further information such as stack traces may be useful, but
   is not necessary.
 
+# GTK 3.24 Unofficial Mirror
+
+This repository is an unofficial mirror of the `gtk-3-24` branch from GNOME GTK.
+
+Original upstream:
+https://gitlab.gnome.org/GNOME/gtk
+
+Branch:
+main
+
+GTK 3.24 is the final stable GTK 3.x series and is maintained for compatibility and bug fixes.
 
 Bug fixes and improvements
 ==========================
