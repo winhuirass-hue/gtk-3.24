@@ -416,22 +416,13 @@ static void
 gtk_application_add_platform_data (GApplication    *application,
                                    GVariantBuilder *builder)
 {
-  /* This is slightly evil.
-   *
-   * We don't have an impl here because we're remote so we can't figure
-   * out what to do on a per-display-server basis.
-   *
-   * So we do all the things... which currently is just one thing.
-   */
-  const char *startup_id = gdk_get_startup_notification_id ();
+  GtkApplicationPrivate *priv = gtk_application_get_instance_private (GTK_APPLICATION (application));
 
-  if (startup_id && g_utf8_validate (startup_id, -1, NULL))
-    {
-      g_variant_builder_add (builder, "{sv}", "activation-token",
-                             g_variant_new_string (startup_id));
-      g_variant_builder_add (builder, "{sv}", "desktop-startup-id",
-                             g_variant_new_string (startup_id));
-    }
+  if (!priv->impl)
+    return;
+
+  /* Add display specific platform data */
+  gtk_application_impl_add_platform_data (priv->impl, builder);
 }
 
 static gboolean

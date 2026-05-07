@@ -184,6 +184,7 @@ gtk_application_impl_wayland_before_emit (GtkApplicationImpl *impl,
                                           GVariant           *platform_data)
 {
   const char *startup_notification_id = NULL;
+  GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) impl;
 
   g_variant_lookup (platform_data, "activation-token", "&s", &startup_notification_id);
   if (!startup_notification_id)
@@ -192,6 +193,8 @@ gtk_application_impl_wayland_before_emit (GtkApplicationImpl *impl,
 G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   gdk_wayland_display_set_startup_notification_id (gdk_display_get_default (), startup_notification_id);
 G_GNUC_END_IGNORE_DEPRECATIONS
+
+  g_set_str (&dbus->startup_id, startup_notification_id);
 }
 
 static void

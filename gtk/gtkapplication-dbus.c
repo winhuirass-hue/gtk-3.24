@@ -743,6 +743,25 @@ gtk_application_impl_dbus_retrieve_state (GtkApplicationImpl *impl)
 }
 
 static void
+gtk_application_impl_dbus_add_platform_data (GtkApplicationImpl *impl,
+                                             GVariantBuilder    *builder)
+{
+  GtkApplicationImplDBus *dbus = (GtkApplicationImplDBus *) impl;
+  const char *startup_id = dbus->startup_id;
+
+  if (!startup_id)
+    startup_id = gdk_get_startup_notification_id ();
+
+  if (!startup_id || !g_utf8_validate (startup_id, -1, NULL))
+    return;
+
+  g_variant_builder_add (builder, "{sv}", "activation-token",
+                         g_variant_new_string (startup_id));
+  g_variant_builder_add (builder, "{sv}", "desktop-startup-id",
+                         g_variant_new_string (startup_id));
+}
+
+static void
 gtk_application_impl_dbus_init (GtkApplicationImplDBus *dbus)
 {
 }
@@ -774,6 +793,7 @@ gtk_application_impl_dbus_finalize (GObject *object)
   g_free (dbus->menubar_path);
   g_clear_object (&dbus->cancellable);
   g_free (dbus->instance_id);
+  g_free (dbus->startup_id);
 
   G_OBJECT_CLASS (gtk_application_impl_dbus_parent_class)->finalize (object);
 }
@@ -800,6 +820,7 @@ gtk_application_impl_dbus_class_init (GtkApplicationImplDBusClass *class)
   impl_class->forget_state = gtk_application_impl_dbus_forget_state;
   impl_class->unforget_state = gtk_application_impl_dbus_unforget_state;
   impl_class->retrieve_state = gtk_application_impl_dbus_retrieve_state;
+  impl_class->add_platform_data = gtk_application_impl_dbus_add_platform_data;
 
   gobject_class->finalize = gtk_application_impl_dbus_finalize;
 }
