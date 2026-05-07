@@ -20,7 +20,6 @@
 #pragma once
 
 #include "gtk/gtkcssimageprivate.h"
-#include "gtk/gtkicontheme.h"
 
 G_BEGIN_DECLS
 
@@ -38,7 +37,7 @@ struct _GtkCssImageIconTheme
 {
   GtkCssImage parent;
 
-  GtkIconTheme *icon_theme;
+  GdkDisplay *display;
   GtkCssValue *colors[4];
   int serial;
   int scale;
@@ -46,7 +45,7 @@ struct _GtkCssImageIconTheme
 
   int cached_size;
   gboolean cached_symbolic;
-  GtkIconPaintable *cached_icon;
+  GdkPaintable *cached_icon;
 };
 
 struct _GtkCssImageIconThemeClass

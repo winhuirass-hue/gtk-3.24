@@ -31,6 +31,7 @@
 #include "gsk/gskprivate.h"
 #include "gsk/gskrendernodeprivate.h"
 #include "gtknative.h"
+#include "gtkiconprovider.h"
 
 #include <locale.h>
 
@@ -590,7 +591,14 @@ gettext_initialization (void)
 static void
 default_display_notify_cb (GdkDisplayManager *dm)
 {
-  debug_flags[0].display = gdk_display_get_default ();
+  GdkDisplay *display;
+
+  display = gdk_display_get_default ();
+
+  debug_flags[0].display = display;
+  if (display)
+    gtk_icon_provider_set_for_display (display,
+                                       GTK_ICON_PROVIDER (gtk_icon_theme_get_for_display (display)));
 }
 
 static void

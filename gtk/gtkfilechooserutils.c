@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "gtkfilechooserutils.h"
+#include "gtkiconprovider.h"
 #include "deprecated/gtkfilechooser.h"
 #include "gtktypebuiltins.h"
 #include "gtkprivate.h"
@@ -453,10 +454,9 @@ _gtk_file_consider_as_remote (GFile *file)
 }
 
 GIcon *
-_gtk_file_info_get_icon (GFileInfo    *info,
-                         int           icon_size,
-                         int           scale,
-                         GtkIconTheme *icon_theme)
+_gtk_file_info_get_icon (GFileInfo *info,
+                         int        icon_size,
+                         int        scale)
 {
   GIcon *icon;
   const char *thumbnail_path;
@@ -476,12 +476,18 @@ _gtk_file_info_get_icon (GFileInfo    *info,
     }
 
   icon = g_file_info_get_icon (info);
-  if (icon && gtk_icon_theme_has_gicon (icon_theme, icon))
-    return g_object_ref (icon);
+  if (icon)
+    {
+      if (!G_IS_THEMED_ICON (icon))
+        return g_object_ref (icon);
+
+      if (gtk_has_icon (gdk_display_get_default (),
+                        g_themed_icon_get_names (G_THEMED_ICON (icon))[0]))
+        return g_object_ref (icon);
+    }
 
   /* Use general fallback for all files without icon */
-  icon = g_themed_icon_new ("text-x-generic");
-  return icon;
+  return g_themed_icon_new ("text-x-generic");
 }
 
 GFile *

@@ -25,7 +25,7 @@
 #include "gtkboxlayout.h"
 #include "gtkbutton.h"
 #include "gtkenums.h"
-#include "gtkicontheme.h"
+#include "gtkiconprovider.h"
 #include "gtkimage.h"
 #include <glib/gi18n-lib.h>
 #include "gtkprivate.h"
@@ -173,34 +173,26 @@ get_layout (GtkWindowControls *self)
   return layout_half;
 }
 
-static GdkPaintable *
-get_default_icon (GtkWidget *widget)
-{
-  GdkDisplay *display = gtk_widget_get_display (widget);
-  GtkIconPaintable *info;
-  int scale = gtk_widget_get_scale_factor (widget);
-
-  info = gtk_icon_theme_lookup_icon (gtk_icon_theme_get_for_display (display),
-                                     gtk_window_get_default_icon_name (),
-                                     NULL,
-                                     WINDOW_ICON_SIZE,
-                                     scale,
-                                     gtk_widget_get_direction (widget),
-                                     0);
-
-  return GDK_PAINTABLE (info);
-}
-
 static gboolean
 update_window_icon (GtkWindow *window,
                     GtkWidget *icon)
 {
+  GtkWidget *widget = GTK_WIDGET (window);
+  const char *icon_name = NULL;
   GdkPaintable *paintable;
 
   if (window)
-    paintable = gtk_window_get_icon_for_size (window, WINDOW_ICON_SIZE);
-  else
-    paintable = get_default_icon (icon);
+    icon_name = gtk_window_get_icon_name (window);
+
+  if (!icon_name)
+    icon_name = gtk_window_get_default_icon_name ();
+
+  paintable = gtk_lookup_icon (gtk_widget_get_display (widget),
+                               icon_name,
+                               WINDOW_ICON_SIZE,
+                               gtk_widget_get_scale_factor (widget),
+                               gtk_widget_get_direction (widget),
+                               GTK_ICON_LOOKUP_NONE);
 
   if (paintable)
     {
