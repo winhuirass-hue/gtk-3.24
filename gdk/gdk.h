@@ -22,8 +22,7 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/.
  */
 
-#ifndef __GDK_H__
-#define __GDK_H__
+#pragma once
 
 #define __GDK_H_INSIDE__
 
@@ -70,5 +69,3 @@
 #include <gdk/gdk-autocleanup.h>
 
 #undef __GDK_H_INSIDE__
-
-#endif /* __GDK_H__ */
